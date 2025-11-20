@@ -26,7 +26,7 @@ class UploadController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|max:20480', // max 20MB
+            'file' => 'required|file|max:102400', // max 20MB
             'keterangan' => 'nullable|string|max:255',
         ]);
 
