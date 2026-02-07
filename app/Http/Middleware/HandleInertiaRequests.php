@@ -3,7 +3,9 @@
 namespace App\Http\Middleware;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Middleware;
+use Tighten\Ziggy\Ziggy;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -16,7 +18,7 @@ class HandleInertiaRequests extends Middleware
      */
     protected $rootView = 'app';
 
-    
+
 
     /**
      * Determines the current asset version.
@@ -37,9 +39,58 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
-        return [
-            ...parent::share($request),
-            //
-        ];
+        return array_merge(parent::share($request), [
+            'csrf_token' => csrf_token(),
+            "weekly_quote" => Cache::get("weekly_quote"),
+            'auth' => [
+                'user' => fn() => $request->user()
+                    ? [
+                        'id' => $request->user()->id,
+                        'uuid' => $request->user()->uuid,
+                        'nama_lengkap' => $request->user()->nama_lengkap,
+                        'email' => $request->user()->email,
+                        'avatar' => $request->user()->avatar,
+                        'peran' => $request->user()->peran,
+                    ]
+                    : null,
+            ],
+            'flash' => [
+                'success' => fn() => $request->session()->get('success'),
+            ],
+            'ziggy' => function () {
+                return (new Ziggy())->toArray();
+            },
+            'dosen_classes' => fn() => $this->shareDosenClasses($request),
+        ]);
+    }
+    private function shareDosenClasses(Request $request): array
+    {
+        $user = $request->user();
+        if (!$user || $user->peran !== 'dosen') return [];
+
+        // kalau relasi dosen belum ada
+        if (!$user->relationLoaded('dosen')) {
+            $user->load('dosen');
+        }
+        if (!$user->dosen) return [];
+
+        return \App\Models\Kelas::query()
+            ->where('dosen_id', $user->dosen->id)
+            ->whereHas(
+                'semester',
+                fn($q) =>
+                $q->where('status_aktif', 'active')
+            )
+            ->with(['mataKuliah:id,nama_mk', 'semester:id,nama_semester,status_aktif',])
+            ->orderBy('nama_kelas')
+            ->get()
+            ->map(fn($k) => [
+                'id' => $k->id,
+                'uuid' => $k->uuid,
+                'nama' => $k->nama_kelas,
+                'mata_kuliah' => $k->mataKuliah?->nama_mk,
+                'semester' => $k->semester?->nama_semester,
+            ])
+            ->toArray();
     }
 }

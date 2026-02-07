@@ -18,9 +18,12 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
+        'uuid',
+        'nama_lengkap',
         'email',
         'password',
+        'peran',
+        'avatar',
     ];
 
     /**
@@ -45,8 +48,14 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
-    public function uploads()
+
+    public function dosen()
     {
-        return $this->hasMany(Upload::class);
+        return $this->hasOne(Dosen::class);
+    }
+
+    public function mahasiswa()
+    {
+        return $this->hasOne(Mahasiswa::class);
     }
 }
