@@ -10,18 +10,9 @@ const props = defineProps({
 const page = usePage();
 const authUserId = computed(() => page.props?.auth?.user?.id ?? null);
 
-// ✅ dosen lagi login?
-const isMeDosen = computed(() => {
-    const dosenUserId = props.kelas?.dosen?.user_id ?? null;
-    return String(dosenUserId ?? "") === String(authUserId.value ?? "");
-});
-
-// ===== Avatar helpers =====
 const avatarUrl = (avatar) => {
     if (!avatar) return null;
-    // sudah full url
     if (/^https?:\/\//.test(String(avatar))) return String(avatar);
-    // storage path
     return `/storage/${avatar}`;
 };
 
@@ -31,9 +22,11 @@ const initials = (name, fallback = "U") => {
     return n.slice(0, 1).toUpperCase();
 };
 
-// Dosen avatar
-const dosenAvatar = computed(() => props.kelas?.dosen?.avatar ?? null);
-const dosenAvatarUrl = computed(() => avatarUrl(dosenAvatar.value));
+const isMe = (a) =>
+    String(a?.mahasiswa?.user_id ?? "") === String(authUserId.value ?? "");
+
+// dosen avatar
+const dosenAvatarUrl = computed(() => avatarUrl(props.kelas?.dosen?.avatar));
 </script>
 
 <template>
@@ -48,17 +41,15 @@ const dosenAvatarUrl = computed(() => avatarUrl(dosenAvatar.value));
         </div>
 
         <div class="p-6">
-            <!-- Dosen -->
+            <!-- DOSEN -->
             <div class="mb-6">
                 <div class="text-xs text-gray-500">Pengajar</div>
 
                 <div
                     class="mt-2 flex items-center gap-3 rounded-2xl border border-gray-200/70 bg-gray-50 px-4 py-3"
                 >
-                    <!-- AVATAR DOSEN -->
                     <div
                         class="w-10 h-10 rounded-full overflow-hidden bg-white ring-1 ring-gray-200/70 grid place-items-center font-bold text-gray-700"
-                        aria-hidden="true"
                     >
                         <img
                             v-if="dosenAvatarUrl"
@@ -68,23 +59,14 @@ const dosenAvatarUrl = computed(() => avatarUrl(dosenAvatar.value));
                         />
                         <span v-else>
                             {{
-                                initials(
-                                    isMeDosen
-                                        ? "Anda"
-                                        : (kelas.dosen?.nama_lengkap ?? "D"),
-                                    "D",
-                                )
+                                initials(kelas.dosen?.nama_lengkap ?? "D", "D")
                             }}
                         </span>
                     </div>
 
                     <div class="min-w-0">
                         <div class="font-semibold text-gray-900 truncate">
-                            {{
-                                isMeDosen
-                                    ? "Anda"
-                                    : (kelas.dosen?.nama_lengkap ?? "—")
-                            }}
+                            {{ kelas.dosen?.nama_lengkap ?? "—" }}
                         </div>
                         <div class="text-xs text-gray-500 truncate">
                             {{ kelas.dosen?.email ?? "—" }}
@@ -93,7 +75,7 @@ const dosenAvatarUrl = computed(() => avatarUrl(dosenAvatar.value));
                 </div>
             </div>
 
-            <!-- Mahasiswa -->
+            <!-- MAHASISWA -->
             <div>
                 <div class="text-xs text-gray-500">
                     Mahasiswa ({{
@@ -118,7 +100,6 @@ const dosenAvatarUrl = computed(() => avatarUrl(dosenAvatar.value));
                             <!-- AVATAR MAHASISWA -->
                             <div
                                 class="w-10 h-10 rounded-full overflow-hidden bg-gray-50 ring-1 ring-gray-200/70 grid place-items-center font-bold text-gray-700 shrink-0"
-                                aria-hidden="true"
                             >
                                 <img
                                     v-if="avatarUrl(a.mahasiswa?.avatar)"
@@ -137,7 +118,11 @@ const dosenAvatarUrl = computed(() => avatarUrl(dosenAvatar.value));
                                 <div
                                     class="font-semibold text-gray-900 truncate"
                                 >
-                                    {{ a.mahasiswa?.nama_lengkap ?? "—" }}
+                                    {{
+                                        isMe(a)
+                                            ? "Anda"
+                                            : (a.mahasiswa?.nama_lengkap ?? "—")
+                                    }}
                                 </div>
                                 <div class="text-xs text-gray-500 truncate">
                                     {{ a.mahasiswa?.nim ?? "—" }} •

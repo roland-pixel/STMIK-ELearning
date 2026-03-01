@@ -11,12 +11,17 @@ use App\Http\Controllers\Admin\ProfileController as AdminProfileController;
 use App\Http\Controllers\Admin\SemesterController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Dosen\DashboardController as DosenDashboardController;
-use App\Http\Controllers\Dosen\KelasDetailController;
+use App\Http\Controllers\Dosen\KelasDetailController as DosenKelasDetailController;
 use App\Http\Controllers\Dosen\KelasController as DosenKelasController;
-use App\Http\Controllers\Dosen\MateriController;
+use App\Http\Controllers\Dosen\MateriController as DosenMateriController;
+use App\Http\Controllers\Mahasiswa\MateriController as MahasiswaMateriController;
 use App\Http\Controllers\Dosen\PenilaianBimbinganController;
 use App\Http\Controllers\Dosen\PenilaianOnlineController;
 use App\Http\Controllers\Dosen\ProfileController as DosenProfileController;
+use App\Http\Controllers\Mahasiswa\DashboardController as MahasiswaDashboardController;
+use App\Http\Controllers\Mahasiswa\ProfileController as MahasiswaProfileController;
+use App\Http\Controllers\Mahasiswa\KelasDetailController as MahasiswaKelasDetailController;
+use App\Http\Controllers\Mahasiswa\JoinKelasController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -114,12 +119,12 @@ Route::middleware(['auth', 'role:dosen'])
         /** ================= Kelas ================= */
         Route::prefix('kelas/{kelas:uuid}')->name('kelas.')->group(function () {
 
-            Route::get('/', [KelasDetailController::class, 'show'])->name('show');
+            Route::get('/', [DosenKelasDetailController::class, 'show'])->name('show');
             Route::patch('/settings', [DosenKelasController::class, 'updateSettings'])
                 ->name('settings.update');
 
             /** ===== Materi ===== */
-            Route::resource('materi', MateriController::class)
+            Route::resource('materi', DosenMateriController::class)
                 ->only(['index', 'create', 'store', 'edit', 'update', 'destroy'])
                 ->names('materi');
 
@@ -133,5 +138,36 @@ Route::middleware(['auth', 'role:dosen'])
                 Route::put('/{penilaian}', [PenilaianOnlineController::class, 'update'])->name('update');
                 Route::delete('/{penilaian}', [PenilaianOnlineController::class, 'destroy'])->name('destroy');
             });
+        });
+    });
+
+
+/*
+|--------------------------------------------------------------------------
+| Mahasiswa
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth', 'role:mahasiswa'])
+    ->prefix('mahasiswa')
+    ->name('mahasiswa.')
+    ->group(function () {
+
+        Route::get('dashboard', [MahasiswaDashboardController::class, 'index'])
+            ->name('dashboard');
+
+        Route::post('kelas/join', [JoinKelasController::class, 'store'])
+            ->name('kelas.join');
+
+        Route::prefix('profile')->name('profile.')->group(function () {
+            Route::get('/', [MahasiswaProfileController::class, 'edit'])->name('edit');
+            Route::post('/', [MahasiswaProfileController::class, 'update'])->name('update');
+            Route::post('/password', [MahasiswaProfileController::class, 'updatePassword'])->name('password');
+            Route::delete('/avatar', [MahasiswaProfileController::class, 'destroyAvatar'])->name('avatar.destroy');
+        });
+
+        Route::prefix('kelas/{kelas:uuid}')->name('kelas.')->group(function () {
+            Route::get('/', [MahasiswaKelasDetailController::class, 'show'])->name('show');
+            Route::get('materi', [MahasiswaMateriController::class, 'index'])
+                ->name('materi.index');
         });
     });

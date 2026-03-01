@@ -61,6 +61,7 @@ class HandleInertiaRequests extends Middleware
                 return (new Ziggy())->toArray();
             },
             'dosen_classes' => fn() => $this->shareDosenClasses($request),
+            'mahasiswa_classes' => fn() => $this->shareMahasiswaClasses($request),
         ]);
     }
     private function shareDosenClasses(Request $request): array
@@ -90,6 +91,41 @@ class HandleInertiaRequests extends Middleware
                 'nama' => $k->nama_kelas,
                 'mata_kuliah' => $k->mataKuliah?->nama_mk,
                 'semester' => $k->semester?->nama_semester,
+            ])
+            ->toArray();
+    }
+
+    private function shareMahasiswaClasses(Request $request): array
+    {
+        $user = $request->user();
+        if (!$user || $user->peran !== 'mahasiswa') return [];
+
+        // pastikan relasi mahasiswa ada
+        if (!$user->relationLoaded('mahasiswa')) {
+            $user->load('mahasiswa');
+        }
+        if (!$user->mahasiswa) return [];
+
+        $mahasiswaId = $user->mahasiswa->id;
+
+        return \App\Models\Kelas::query()
+            ->whereHas('semester', fn($q) => $q->where('status_aktif', 'active'))
+            ->whereHas('anggotaKelases', fn($q) => $q->where('mahasiswa_id', $mahasiswaId))
+            ->with([
+                'mataKuliah:id,nama_mk',
+                'semester:id,nama_semester,status_aktif',
+                'dosen:id,user_id',
+                'dosen.user:id,nama_lengkap',
+            ])
+            ->orderBy('nama_kelas')
+            ->get()
+            ->map(fn($k) => [
+                'id' => $k->id,
+                'uuid' => $k->uuid,
+                'nama' => $k->nama_kelas,
+                'mata_kuliah' => $k->mataKuliah?->nama_mk,
+                'semester' => $k->semester?->nama_semester,
+                'dosen' => $k->dosen?->user?->nama_lengkap,
             ])
             ->toArray();
     }

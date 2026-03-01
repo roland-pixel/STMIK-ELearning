@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Dosen;
+namespace App\Http\Controllers\Mahasiswa;
 
 use App\Http\Controllers\Controller;
 use App\Models\Kelas;
@@ -24,34 +24,44 @@ class KelasDetailController extends Controller
         return $themes[$idx];
     }
 
-    private function dosenId(Request $request): int
+    private function mahasiswaId(Request $request): int
     {
-        return (int) DB::table('dosens')
+        return (int) DB::table('mahasiswas')
             ->where('user_id', $request->user()->id)
             ->value('id');
     }
 
+    private function ensureMember(Request $request, Kelas $kelas): int
+    {
+        $mahasiswaId = $this->mahasiswaId($request);
+        abort_if(!$mahasiswaId, 403, 'Akun mahasiswa belum terhubung ke data mahasiswa.');
+
+        $isMember = DB::table('anggota_kelases')
+            ->where('kelas_id', $kelas->id)
+            ->where('mahasiswa_id', $mahasiswaId)
+            ->exists();
+
+        abort_if(!$isMember, 403, 'Kamu tidak terdaftar di kelas ini.');
+
+        return $mahasiswaId;
+    }
+
     public function show(Request $request, Kelas $kelas)
     {
-        $dosenId = $this->dosenId($request);
+        abort_if($request->user()?->peran !== 'mahasiswa', 403);
 
-        // Pastikan dosen hanya bisa akses kelas yang dia ampu
-        abort_if((int) $kelas->dosen_id !== $dosenId, 403);
+        $mahasiswaId = $this->ensureMember($request, $kelas);
 
-        // theme harus konsisten dengan dashboard
         $theme = $this->themeFor($kelas->uuid ?? (string) $kelas->id);
 
-        // Total anggota
         $totalAnggota = $kelas->anggotaKelases()->count();
 
-        // Eager load
         $kelas->load([
             'dosen.user:id,nama_lengkap,email,avatar',
             'mataKuliah:id,kode_mk,nama_mk,sks,jenis_mk',
             'semester:id,nama_semester,status_aktif,tanggal_mulai,tanggal_selesai',
         ]);
 
-        // Materi
         $materis = $kelas->materis()
             ->latest()
             ->get()
@@ -64,19 +74,18 @@ class KelasDetailController extends Controller
                 'created_at' => optional($m->created_at)->toDateTimeString(),
             ]);
 
-        // Penilaian
         $penilaiansRaw = $kelas->penilaians()
             ->latest()
             ->get(['id', 'uuid', 'judul', 'instruksi', 'kategori', 'mode_penilaian', 'tenggat_waktu', 'created_at']);
 
-        $pengumpulanCounts = DB::table('pengumpulans')
-            ->select('penilaian_id', DB::raw('COUNT(*) as total'))
+        $pengumpulanByPenilaian = DB::table('pengumpulans')
+            ->where('mahasiswa_id', $mahasiswaId)
             ->whereIn('penilaian_id', $penilaiansRaw->pluck('id'))
-            ->groupBy('penilaian_id')
-            ->pluck('total', 'penilaian_id');
+            ->get(['penilaian_id', 'waktu_mulai', 'waktu_selesai', 'nilai_total'])
+            ->keyBy('penilaian_id');
 
-        $penilaians = $penilaiansRaw->map(function ($p) use ($totalAnggota, $pengumpulanCounts) {
-            $sudah = (int) ($pengumpulanCounts[$p->id] ?? 0);
+        $penilaians = $penilaiansRaw->map(function ($p) use ($pengumpulanByPenilaian) {
+            $peng = $pengumpulanByPenilaian->get($p->id);
 
             return [
                 'id' => $p->id,
@@ -87,15 +96,18 @@ class KelasDetailController extends Controller
                 'mode_penilaian' => $p->mode_penilaian,
                 'tenggat_waktu' => optional($p->tenggat_waktu)->toDateTimeString(),
                 'created_at' => optional($p->created_at)->toDateTimeString(),
-                'stat' => [
-                    'total_anggota' => $totalAnggota,
-                    'sudah_mengumpulkan' => $sudah,
-                    'belum_mengumpulkan' => max($totalAnggota - $sudah, 0),
+                'my' => [
+                    'started_at' => $peng?->waktu_mulai ? (string) $peng->waktu_mulai : null,
+                    'submitted_at' => $peng?->waktu_selesai ? (string) $peng->waktu_selesai : null,
+                    'nilai_total' => $peng?->nilai_total !== null ? (float) $peng->nilai_total : null,
+                    'status' => $peng
+                        ? ($peng->waktu_selesai ? 'submitted' : 'in_progress')
+                        : 'not_started',
                 ],
             ];
         });
 
-        // Anggota
+        // ✅ Anggota + avatar HARUS ikut di user
         $anggota = $kelas->anggotaKelases()
             ->with([
                 'mahasiswa:id,uuid,nim,user_id',
@@ -109,36 +121,24 @@ class KelasDetailController extends Controller
                 'mahasiswa' => [
                     'uuid' => $a->mahasiswa?->uuid,
                     'nim' => $a->mahasiswa?->nim,
+                    'user_id' => $a->mahasiswa?->user_id,
                     'nama_lengkap' => $a->mahasiswa?->user?->nama_lengkap,
                     'email' => $a->mahasiswa?->user?->email,
                     'avatar' => $a->mahasiswa?->user?->avatar,
                 ],
             ]);
 
-        return Inertia::render('Dosen/Kelas/Show', [
+        return Inertia::render('Mahasiswa/Kelas/Show', [
             'kelas' => [
                 'id' => $kelas->id,
                 'uuid' => $kelas->uuid,
                 'nama_kelas' => $kelas->nama_kelas,
                 'deskripsi' => $kelas->deskripsi,
-                'kode_gabung' => $kelas->kode_gabung,
-
-                // ✅ INI KUNCI BIAR SAMA DENGAN DASHBOARD
                 'theme' => $theme,
-
-                // (opsional) kalau suatu saat kamu punya cover/pattern dari DB
-                // 'cover' => $kelas->cover ?? null,
-                // 'pattern' => $kelas->pattern ?? null,
-
-                'persentase_tugas' => $kelas->persentase_tugas,
-                'persentase_uts' => $kelas->persentase_uts,
-                'persentase_uas' => $kelas->persentase_uas,
-
                 'dosen' => [
-                    'user_id' => $kelas->dosen?->user_id,
-                    'avatar' => $kelas->dosen?->user?->avatar,
                     'nama_lengkap' => $kelas->dosen?->user?->nama_lengkap,
                     'email' => $kelas->dosen?->user?->email,
+                    'avatar' => $kelas->dosen?->user?->avatar,
                 ],
                 'mata_kuliah' => [
                     'kode_mk' => $kelas->mataKuliah?->kode_mk,
@@ -155,7 +155,7 @@ class KelasDetailController extends Controller
                 'counts' => [
                     'materi' => $materis->count(),
                     'penilaian' => $penilaians->count(),
-                    'anggota' => $anggota->count(),
+                    'anggota' => $totalAnggota,
                 ],
             ],
             'materis' => $materis,
