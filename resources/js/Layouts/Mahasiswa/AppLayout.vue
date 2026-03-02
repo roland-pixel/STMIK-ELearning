@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed } from "vue";
+import { usePage } from "@inertiajs/vue3";
 import Sidebar from "@/Components/Mahasiswa/Sidebar.vue";
 import Topbar from "@/Components/Mahasiswa/Topbar.vue";
 
@@ -8,14 +9,15 @@ const props = defineProps({
     title: { type: String, default: "Classroom" },
 });
 
-// desktop default open
-const isSidebarOpen = ref(true);
+const page = usePage();
 
+const isSidebarOpen = ref(true);
 const emit = defineEmits(["open-join"]);
 
-const toggleSidebar = () => {
-    isSidebarOpen.value = !isSidebarOpen.value;
-};
+const toggleSidebar = () => (isSidebarOpen.value = !isSidebarOpen.value);
+
+// ✅ ambil kelas dari page props (kalau ada)
+const kelas = computed(() => page.props.kelas ?? null);
 
 const mainClass = computed(() =>
     isSidebarOpen.value ? "md:ml-72" : "md:ml-0",
@@ -24,9 +26,9 @@ const mainClass = computed(() =>
 
 <template>
     <div class="min-h-screen bg-gray-50">
-        <!-- ✅ cuma 1 topbar -->
         <Topbar
             :title="title"
+            :kelas="kelas"
             @toggle-sidebar="toggleSidebar"
             @open-join="emit('open-join')"
         />
@@ -38,7 +40,6 @@ const mainClass = computed(() =>
                 @close="isSidebarOpen = false"
             />
 
-            <!-- overlay mobile -->
             <div
                 v-if="isSidebarOpen"
                 class="fixed inset-0 bg-black/40 z-30 md:hidden"

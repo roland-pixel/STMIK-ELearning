@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { usePage } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/Mahasiswa/AppLayout.vue";
 
@@ -24,13 +24,31 @@ const classes = computed(
 );
 
 /** Tabs */
-const tab = ref("forum");
 const tabs = [
     { key: "forum", label: "Forum" },
     { key: "tugas", label: "Tugas kelas" },
     { key: "orang", label: "Orang" },
     { key: "nilai", label: "Nilai" },
 ];
+
+const getTabFromUrl = () => {
+    try {
+        const u = new URL(page.url, window.location.origin);
+        return u.searchParams.get("tab") || "forum";
+    } catch {
+        return "forum";
+    }
+};
+
+const tab = ref(getTabFromUrl());
+
+// ✅ kalau user pindah via link (mis. klik breadcrumb “contoh”), sinkronin tab
+watch(
+    () => page.url,
+    () => {
+        tab.value = getTabFromUrl();
+    },
+);
 
 /** util */
 const fileUrl = (path) => (path ? `/storage/${path}` : null);
