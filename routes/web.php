@@ -169,5 +169,13 @@ Route::middleware(['auth', 'role:mahasiswa'])
             Route::get('/', [MahasiswaKelasDetailController::class, 'show'])->name('show');
             Route::get('materi', [MahasiswaMateriController::class, 'index'])
                 ->name('materi.index');
+            Route::prefix('penilaian/online/{penilaian:uuid}')->name('penilaian.online.')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Mahasiswa\PengerjaanPenilaianController::class, 'show'])
+                    ->name('show');
+                Route::post('/kerjakan', [\App\Http\Controllers\Mahasiswa\PengerjaanPenilaianController::class, 'kerjakan'])
+                    ->name('kerjakan');
+                Route::post('/submit', [\App\Http\Controllers\Mahasiswa\PengerjaanPenilaianController::class, 'submit'])
+                    ->name('submit');
+            });
         });
     });

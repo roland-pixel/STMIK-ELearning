@@ -128,6 +128,7 @@ const forumItems = computed(() => {
         type: "penilaian",
         id: `penilaian-${p.id}`,
         penilaian_id: p.id,
+        uuid: p.uuid,
         title: p.judul,
         created_at: p.created_at,
         tenggat_waktu: p.tenggat_waktu ?? null,
@@ -215,62 +216,70 @@ const copyItemLink = async (it) => {
     openMenuId.value = null;
 };
 
-/** klik item masih statis */
+/** Klik item: Materi ke index materi, Penilaian ke show penilaian */
 const goItem = (it) => {
-    if (!it || it.type !== "materi") return;
+    if (!it) return;
+    const kelasParam = props.kelas.uuid ?? props.kelas.id;
 
-    const base = safeRoute(
-        "mahasiswa.kelas.materi.index",
-        { kelas: props.kelas.uuid ?? props.kelas.id },
-        null,
-    );
+    if (it.type === "materi") {
+        const base = safeRoute(
+            "mahasiswa.kelas.materi.index",
+            { kelas: kelasParam },
+            null
+        );
+        if (base) {
+            router.visit(`${base}?open=${it.materi_id}`, {
+                preserveScroll: true,
+            });
+        }
+    }
 
-    if (!base) return;
+    else if (it.type === "penilaian") {
+        const penilaianParam = it.uuid;
+        if (!penilaianParam) {
+            console.error("Waduh, UUID penilaian gak ketemu nih di data 'it':", it);
+            return;
+        }
+        const url = safeRoute(
+            "mahasiswa.kelas.penilaian.online.show",
+            {
+                kelas: kelasParam,
+                penilaian: penilaianParam
+            }
+        );
 
-    router.visit(`${base}?open=${it.materi_id}`, {
-        preserveScroll: true,
-    });
+        if (url) {
+            router.get(url);
+        } else {
+            console.error("Gagal generate route. Cek nama route di Ziggy!");
+        }
+    }
 };
 </script>
 
 <template>
     <section class="space-y-4">
         <!-- COVER HEADER -->
-        <div
-            class="overflow-hidden rounded-3xl ring-1 ring-gray-200/70 shadow-sm"
-        >
+        <div class="overflow-hidden rounded-3xl ring-1 ring-gray-200/70 shadow-sm">
             <div class="relative h-44 sm:h-56 text-white" :class="coverClass">
-                <div
-                    class="absolute inset-0 opacity-90"
-                    :style="patternStyle"
-                />
-                <div
-                    class="absolute inset-0 bg-gradient-to-b from-black/25 via-black/10 to-black/30"
-                />
+                <div class="absolute inset-0 opacity-90" :style="patternStyle" />
+                <div class="absolute inset-0 bg-gradient-to-b from-black/25 via-black/10 to-black/30" />
 
                 <div class="relative p-6 sm:p-8">
-                    <h1
-                        class="text-3xl sm:text-4xl font-extrabold tracking-tight drop-shadow-sm"
-                    >
+                    <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight drop-shadow-sm">
                         {{ kelas.nama_kelas }}
                     </h1>
 
-                    <div
-                        class="mt-2 text-sm sm:text-base text-white/90 drop-shadow-sm"
-                    >
+                    <div class="mt-2 text-sm sm:text-base text-white/90 drop-shadow-sm">
                         {{ kelas.dosen?.nama_lengkap ?? kelas.dosen ?? "—" }}
                     </div>
 
-                    <div
-                        class="mt-3 text-sm text-white/90 max-w-3xl line-clamp-2 drop-shadow-sm"
-                    >
+                    <div class="mt-3 text-sm text-white/90 max-w-3xl line-clamp-2 drop-shadow-sm">
                         {{ kelas.deskripsi ?? "—" }}
                     </div>
 
-                    <div
-                        v-if="mkLabel"
-                        class="mt-2 inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white/95 ring-1 ring-white/20 backdrop-blur-sm"
-                    >
+                    <div v-if="mkLabel"
+                        class="mt-2 inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white/95 ring-1 ring-white/20 backdrop-blur-sm">
                         {{ mkLabel }}
                     </div>
                 </div>
@@ -281,9 +290,7 @@ const goItem = (it) => {
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
             <!-- KIRI (info ringkas) -->
             <aside class="lg:col-span-4 space-y-4">
-                <div
-                    class="rounded-2xl bg-white ring-1 ring-gray-200/70 shadow-sm p-5"
-                >
+                <div class="rounded-2xl bg-white ring-1 ring-gray-200/70 shadow-sm p-5">
                     <div class="text-sm font-semibold text-gray-900">
                         Info kelas
                     </div>
@@ -296,13 +303,13 @@ const goItem = (it) => {
                             <span class="text-gray-500">Materi</span>
                             <span class="font-semibold text-gray-900">{{
                                 materis.length
-                            }}</span>
+                                }}</span>
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="text-gray-500">Tugas</span>
                             <span class="font-semibold text-gray-900">{{
                                 penilaians.length
-                            }}</span>
+                                }}</span>
                         </div>
                     </div>
                 </div>
@@ -310,104 +317,64 @@ const goItem = (it) => {
 
             <!-- KANAN (feed) -->
             <main class="lg:col-span-8 min-w-0 w-full space-y-4">
-                <div
-                    v-if="forumItems.length === 0"
-                    class="rounded-2xl bg-white ring-1 ring-gray-200/70 shadow-sm p-6 text-sm text-gray-600"
-                >
+                <div v-if="forumItems.length === 0"
+                    class="rounded-2xl bg-white ring-1 ring-gray-200/70 shadow-sm p-6 text-sm text-gray-600">
                     Belum ada postingan (materi / penilaian).
                 </div>
 
-                <div
-                    v-else
-                    class="bg-white rounded-2xl ring-1 ring-gray-200/70 shadow-sm"
-                >
+                <div v-else class="bg-white rounded-2xl ring-1 ring-gray-200/70 shadow-sm">
                     <div class="space-y-2 px-2 py-2">
-                        <div
-                            v-for="it in forumItems"
-                            :key="it.id"
-                            :class="[
-                                'px-6 py-4 flex items-center justify-between gap-4 rounded-xl hover:bg-gray-50',
-                                it.type === 'materi'
-                                    ? 'cursor-pointer'
-                                    : 'cursor-default',
-                            ]"
-                            @click="goItem(it)"
-                        >
+                        <div v-for="it in forumItems" :key="it.id" :class="[
+                            'px-6 py-4 flex items-center justify-between gap-4 rounded-xl hover:bg-gray-50', 'cursor-pointer',
+                        ]" @click="goItem(it)">
                             <!-- kiri -->
                             <div class="flex items-center gap-4 min-w-0">
                                 <div class="shrink-0">
-                                    <div
-                                        class="w-10 h-10 rounded-full grid place-items-center text-white"
-                                        :class="itemIconClass"
-                                        :title="
-                                            it.type === 'materi'
-                                                ? 'Materi'
-                                                : 'Tugas'
-                                        "
-                                    >
-                                        <svg
-                                            v-if="it.type === 'materi'"
-                                            viewBox="0 0 24 24"
-                                            class="w-5 h-5"
-                                        >
-                                            <path
-                                                fill="currentColor"
-                                                d="M6 2h10a2 2 0 0 1 2 2v16a1 1 0 0 0-1-1H6a2 2 0 0 0-2 2V4a2 2 0 0 1 2-2zm1 2v13.5c.6-.3 1.3-.5 2-.5h7V4H7zm6 3v5l2-1 2 1V7h-4z"
-                                            />
+                                    <div class="w-10 h-10 rounded-full grid place-items-center text-white"
+                                        :class="itemIconClass" :title="it.type === 'materi'
+                                            ? 'Materi'
+                                            : 'Tugas'
+                                            ">
+                                        <svg v-if="it.type === 'materi'" viewBox="0 0 24 24" class="w-5 h-5">
+                                            <path fill="currentColor"
+                                                d="M6 2h10a2 2 0 0 1 2 2v16a1 1 0 0 0-1-1H6a2 2 0 0 0-2 2V4a2 2 0 0 1 2-2zm1 2v13.5c.6-.3 1.3-.5 2-.5h7V4H7zm6 3v5l2-1 2 1V7h-4z" />
                                         </svg>
 
-                                        <svg
-                                            v-else
-                                            viewBox="0 0 24 24"
-                                            class="w-5 h-5"
-                                        >
-                                            <path
-                                                fill="currentColor"
-                                                d="M9 2h6a2 2 0 0 1 2 2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2-2zm0 2v2h6V4H9zm-1 6h8v2H8v-2zm0 4h6v2H8v-2z"
-                                            />
+                                        <svg v-else viewBox="0 0 24 24" class="w-5 h-5">
+                                            <path fill="currentColor"
+                                                d="M9 2h6a2 2 0 0 1 2 2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2-2zm0 2v2h6V4H9zm-1 6h8v2H8v-2zm0 4h6v2H8v-2z" />
                                         </svg>
                                     </div>
                                 </div>
 
                                 <div class="min-w-0">
-                                    <div
-                                        class="text-sm font-semibold text-gray-900 truncate"
-                                    >
+                                    <div class="text-sm font-semibold text-gray-900 truncate">
                                         {{ it.title }}
                                     </div>
 
-                                    <div
-                                        class="mt-1 flex flex-wrap items-center gap-2"
-                                    >
-                                        <span
-                                            v-if="
-                                                it.type === 'penilaian' &&
-                                                dueBadge(it)
-                                            "
-                                            class="inline-flex items-center rounded-full bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-200"
-                                        >
+                                    <div class="mt-1 flex flex-wrap items-center gap-2">
+                                        <span v-if="
+                                            it.type === 'penilaian' &&
+                                            dueBadge(it)
+                                        "
+                                            class="inline-flex items-center rounded-full bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-200">
                                             {{ dueBadge(it) }}
                                         </span>
 
-                                        <span
-                                            v-if="
-                                                it.type === 'penilaian' &&
-                                                statusBadge(it)
-                                            "
-                                            class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1"
-                                            :class="statusBadge(it).cls"
-                                        >
+                                        <span v-if="
+                                            it.type === 'penilaian' &&
+                                            statusBadge(it)
+                                        " class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1"
+                                            :class="statusBadge(it).cls">
                                             {{ statusBadge(it).label }}
                                         </span>
 
                                         <!-- progress per penilaian (kalau ada stat) -->
-                                        <span
-                                            v-if="
-                                                it.type === 'penilaian' &&
-                                                it.stat
-                                            "
-                                            class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 ring-1 ring-blue-100"
-                                        >
+                                        <span v-if="
+                                            it.type === 'penilaian' &&
+                                            it.stat
+                                        "
+                                            class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 ring-1 ring-blue-100">
                                             Progress: {{ progressPct(it) }}%
                                         </span>
                                     </div>
@@ -416,49 +383,32 @@ const goItem = (it) => {
 
                             <!-- kanan -->
                             <div class="shrink-0 flex items-center gap-3">
-                                <div
-                                    class="text-sm text-gray-500 whitespace-nowrap"
-                                >
+                                <div class="text-sm text-gray-500 whitespace-nowrap">
                                     {{ formatTimeShort(it.created_at) }}
                                 </div>
 
                                 <!-- menu -->
                                 <div class="relative" data-row-menu @click.stop>
-                                    <button
-                                        type="button"
+                                    <button type="button"
                                         class="w-9 h-9 rounded-xl hover:bg-gray-100 grid place-items-center text-gray-700"
-                                        @click.stop="toggleMenu(it.id)"
-                                        title="Menu"
-                                    >
-                                        <svg
-                                            viewBox="0 0 24 24"
-                                            class="w-5 h-5"
-                                        >
-                                            <path
-                                                fill="currentColor"
-                                                d="M12 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"
-                                            />
+                                        @click.stop="toggleMenu(it.id)" title="Menu">
+                                        <svg viewBox="0 0 24 24" class="w-5 h-5">
+                                            <path fill="currentColor"
+                                                d="M12 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
                                         </svg>
                                     </button>
 
-                                    <div
-                                        v-if="openMenuId === it.id"
-                                        class="absolute right-0 mt-2 w-44 rounded-xl bg-white shadow-xl ring-1 ring-black/10 overflow-hidden z-[9999]"
-                                    >
-                                        <button
-                                            v-if="it.link_url || it.file_path"
-                                            type="button"
+                                    <div v-if="openMenuId === it.id"
+                                        class="absolute right-0 mt-2 w-44 rounded-xl bg-white shadow-xl ring-1 ring-black/10 overflow-hidden z-[9999]">
+                                        <button v-if="it.link_url || it.file_path" type="button"
                                             class="w-full text-left px-4 py-3 text-sm hover:bg-gray-50"
-                                            @click.stop="copyItemLink(it)"
-                                        >
+                                            @click.stop="copyItemLink(it)">
                                             Salin link
                                         </button>
 
-                                        <button
-                                            type="button"
+                                        <button type="button"
                                             class="w-full text-left px-4 py-3 text-sm hover:bg-gray-50"
-                                            @click.stop="openMenuId = null"
-                                        >
+                                            @click.stop="openMenuId = null">
                                             Tutup
                                         </button>
                                     </div>
