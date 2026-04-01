@@ -75,6 +75,7 @@ class KelasDetailController extends Controller
             ]);
 
         $penilaiansRaw = $kelas->penilaians()
+            ->where('mode_penilaian', 'online') // <--- Hanya ambil yang online
             ->latest()
             ->get(['id', 'uuid', 'judul', 'instruksi', 'kategori', 'mode_penilaian', 'tenggat_waktu', 'created_at']);
 

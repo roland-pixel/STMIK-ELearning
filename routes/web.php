@@ -16,6 +16,7 @@ use App\Http\Controllers\Dosen\KelasController as DosenKelasController;
 use App\Http\Controllers\Dosen\MateriController as DosenMateriController;
 use App\Http\Controllers\Mahasiswa\MateriController as MahasiswaMateriController;
 use App\Http\Controllers\Dosen\PenilaianBimbinganController;
+use App\Http\Controllers\Dosen\PenilaianManualController;
 use App\Http\Controllers\Dosen\PenilaianOnlineController;
 use App\Http\Controllers\Dosen\ProfileController as DosenProfileController;
 use App\Http\Controllers\Mahasiswa\DashboardController as MahasiswaDashboardController;
@@ -137,6 +138,15 @@ Route::middleware(['auth', 'role:dosen'])
                 Route::get('/{penilaian}/edit', [PenilaianOnlineController::class, 'edit'])->name('edit');
                 Route::put('/{penilaian}', [PenilaianOnlineController::class, 'update'])->name('update');
                 Route::delete('/{penilaian}', [PenilaianOnlineController::class, 'destroy'])->name('destroy');
+            });
+
+            Route::prefix('penilaian/manual')->name('penilaian.manual.')->group(function () {
+                Route::get('/create', [PenilaianManualController::class, 'create'])->name('create');
+                Route::post('/', [PenilaianManualController::class, 'store'])->name('store');
+
+                // Opsional: Jika ingin bisa mengedit nilai manual yang sudah diinput
+                // Route::get('/{penilaian}/edit', [PenilaianManualController::class, 'edit'])->name('edit');
+                // Route::put('/{penilaian}', [PenilaianManualController::class, 'update'])->name('update');
             });
         });
     });
