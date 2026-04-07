@@ -14,6 +14,7 @@ class MataKuliah extends Model
         'nama_mk',
         'sks',
         'jenis_mk',
+        'kategori_mk',
     ];
 
     public function kelases()

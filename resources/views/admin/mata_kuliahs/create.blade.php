@@ -71,19 +71,46 @@
                         @enderror
                     </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-ink-700">Jenis MK</label>
-                        <select name="jenis_mk"
-                            class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm
-                                   focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition"
-                            required>
-                            <option value="" disabled {{ old('jenis_mk') ? '' : 'selected' }}>Pilih jenis</option>
-                            <option value="Umum" {{ old('jenis_mk') === 'Umum' ? 'selected' : '' }}>Umum</option>
-                            <option value="Spesial" {{ old('jenis_mk') === 'Spesial' ? 'selected' : '' }}>Spesial</option>
-                        </select>
-                        @error('jenis_mk')
-                            <p class="mt-1 text-sm text-rose-700">{{ $message }}</p>
-                        @enderror
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-ink-700">Jenis MK</label>
+                            <select name="jenis_mk"
+                                class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm
+                                       focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition"
+                                required>
+                                <option value="" disabled {{ old('jenis_mk') ? '' : 'selected' }}>Pilih jenis</option>
+                                <option value="Umum" {{ old('jenis_mk') === 'Umum' ? 'selected' : '' }}>Umum</option>
+                                <option value="Spesial" {{ old('jenis_mk') === 'Spesial' ? 'selected' : '' }}>Spesial
+                                </option>
+                            </select>
+                            @error('jenis_mk')
+                                <p class="mt-1 text-sm text-rose-700">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-ink-700">Kategori MK</label>
+                            <select name="kategori_mk"
+                                class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm
+                                       focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition"
+                                required>
+                                <option value="" disabled {{ old('kategori_mk') ? '' : 'selected' }}>Pilih kategori
+                                </option>
+                                <option value="KPP" {{ old('kategori_mk') === 'KPP' ? 'selected' : '' }}>KPP -
+                                    Pengembangan Kepribadian</option>
+                                <option value="KIT" {{ old('kategori_mk') === 'KIT' ? 'selected' : '' }}>KIT - Keilmuan
+                                    & Keterampilan</option>
+                                <option value="KAB" {{ old('kategori_mk') === 'KAB' ? 'selected' : '' }}>KAB - Keahlian
+                                    Berkarya</option>
+                                <option value="KPB" {{ old('kategori_mk') === 'KPB' ? 'selected' : '' }}>KPB - Perilaku
+                                    Berkarya</option>
+                                <option value="KBB" {{ old('kategori_mk') === 'KBB' ? 'selected' : '' }}>KBB -
+                                    Berkehidupan Bermasyarakat</option>
+                            </select>
+                            @error('kategori_mk')
+                                <p class="mt-1 text-sm text-rose-700">{{ $message }}</p>
+                            @enderror
+                        </div>
                     </div>
 
                     <div class="h-px bg-slate-200/80"></div>
