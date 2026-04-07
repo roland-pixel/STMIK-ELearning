@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\BimbinganController;
 use App\Http\Controllers\Admin\DosenController;
+use App\Http\Controllers\Admin\InputNilaiManualController;
 use App\Http\Controllers\Admin\JurusanController;
 use App\Http\Controllers\Admin\KelasController as AdminKelasController;
 use App\Http\Controllers\Admin\MahasiswaController;
@@ -76,6 +77,12 @@ Route::middleware(['auth', 'role:admin'])
 
         Route::resource('kelases', AdminKelasController::class)
             ->except(['show']);
+
+        Route::prefix('input-nilai-manual')->name('input_nilai_manual.')->group(function () {
+            Route::get('/', [InputNilaiManualController::class, 'index'])->name('index');
+            Route::get('/create/{kelas_id}', [InputNilaiManualController::class, 'create'])->name('create');
+            Route::post('/store/{kelas_id}', [InputNilaiManualController::class, 'store'])->name('store');
+        });
 
         Route::resource('bimbingans', BimbinganController::class)
             ->except(['show']);

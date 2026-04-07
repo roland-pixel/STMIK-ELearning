@@ -158,6 +158,22 @@
                     <span class="{{ navLabelClass(['admin.kelases.*']) }}">Kelola Kelas</span>
                 </a>
 
+                {{-- Penilaian Manual --}}
+                <a href="{{ route('admin.input_nilai_manual.index') }}"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-2xl transition {{ navItemClass(['admin.input_nilai_manual.*']) }}">
+                    <span
+                        class="w-9 h-9 rounded-xl border flex items-center justify-center {{ navIconWrapClass(['admin.input_nilai_manual.*']) }}">
+                        {{-- Link / Mentoring --}}
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none">
+                            <path d="M10 13a5 5 0 0 1 0-7l1.2-1.2a5 5 0 0 1 7 7L17 13" stroke="currentColor"
+                                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                            <path d="M14 11a5 5 0 0 1 0 7L12.8 19.2a5 5 0 1 1-7-7L7 11" stroke="currentColor"
+                                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </span>
+                    <span class="{{ navLabelClass(['admin.input_nilai_manual.*']) }}">Kelola Penilaian Manual</span>
+                </a>
+
                 {{-- Bimbingan --}}
                 <a href="{{ route('admin.bimbingans.index') }}"
                     class="flex items-center gap-3 px-3 py-2.5 rounded-2xl transition {{ navItemClass(['admin.bimbingans.*']) }}">

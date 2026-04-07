@@ -15,8 +15,22 @@ class BimbinganController extends Controller
 {
     public function index(Request $request)
     {
-        $q = $request->get('q');
+        // 1. Ambil data untuk isi dropdown filter
+        $dosens = Dosen::with('user')->get();
 
+        // Ambil daftar angkatan unik dari tabel mahasiswa
+        $angkatans = Mahasiswa::select('angkatan')
+            ->distinct()
+            ->orderByDesc('angkatan')
+            ->pluck('angkatan');
+
+        // 2. Tangkap input filter dari request
+        $q = $request->get('q');
+        $filterDosen = $request->get('dosen_id');
+        $filterAngkatan = $request->get('angkatan');
+        $filterJurusan = $request->get('jurusan');
+
+        // 3. Query utama dengan filter
         $bimbingans = Bimbingan::query()
             ->with([
                 'semester',
@@ -24,42 +38,48 @@ class BimbinganController extends Controller
                 'mahasiswa.user',
                 'dosen.user',
             ])
+            // Filter Pencarian Global (Nama/Email/MK)
+            ->when($q, function ($query) use ($q) {
+                $query->where(function ($sub) use ($q) {
+                    $sub->whereHas('mahasiswa.user', fn($u) => $u->where('nama_lengkap', 'like', "%{$q}%"))
+                        ->orWhereHas('dosen.user', fn($u) => $u->where('nama_lengkap', 'like', "%{$q}%"))
+                        ->orWhereHas('mataKuliah', fn($mk) => $mk->where('nama_mk', 'like', "%{$q}%"));
+                });
+            })
+            // Filter Spesifik Dosen Pembimbing
+            ->when($filterDosen, fn($query) => $query->where('dosen_pembimbing_id', $filterDosen))
+
+            // Filter Spesifik Angkatan Mahasiswa
             ->when(
-                $q,
-                fn($query) => $query
-                    ->whereHas(
-                        'mahasiswa.user',
-                        fn($u) => $u
-                            ->where('nama_lengkap', 'like', "%{$q}%")
-                            ->orWhere('email', 'like', "%{$q}%")
-                    )
-                    ->orWhereHas(
-                        'dosen.user',
-                        fn($u) => $u
-                            ->where('nama_lengkap', 'like', "%{$q}%")
-                            ->orWhere('email', 'like', "%{$q}%")
-                    )
-                    ->orWhereHas(
-                        'semester',
-                        fn($s) => $s
-                            ->where('nama_semester', 'like', "%{$q}%")
-                    )
-                    ->orWhereHas(
-                        'mataKuliah',
-                        fn($mk) => $mk
-                            ->where('kode_mk', 'like', "%{$q}%")
-                            ->orWhere('nama_mk', 'like', "%{$q}%")
-                    )
+                $filterAngkatan,
+                fn($query) =>
+                $query->whereHas('mahasiswa', fn($m) => $m->where('angkatan', $filterAngkatan))
+            )
+
+            // Filter Spesifik Jurusan Mahasiswa
+            ->when(
+                $filterJurusan,
+                fn($query) =>
+                $query->whereHas('mahasiswa', fn($m) => $m->where('jurusan', $filterJurusan))
             )
             ->latest()
             ->paginate(10)
             ->withQueryString();
 
-        return view('admin.bimbingans.index', compact('bimbingans', 'q'));
+        return view('admin.bimbingans.index', compact(
+            'bimbingans',
+            'q',
+            'dosens',
+            'angkatans',
+            'filterDosen',
+            'filterAngkatan',
+            'filterJurusan'
+        ));
     }
 
     public function create()
     {
+        $semesterAktif = Semester::where('status_aktif', 'active')->first();
         $semesters = Semester::query()->orderByDesc('id')->get();
         $mahasiswas = Mahasiswa::query()->with('user')->orderByDesc('id')->get();
         $dosens = Dosen::query()->with('user')->orderByDesc('id')->get();
@@ -70,7 +90,7 @@ class BimbinganController extends Controller
             ->orderBy('nama_mk')
             ->get();
 
-        return view('admin.bimbingans.create', compact('semesters', 'mahasiswas', 'dosens', 'mataKuliahs'));
+        return view('admin.bimbingans.create', compact('semesterAktif', 'semesters', 'mahasiswas', 'dosens', 'mataKuliahs'));
     }
 
     public function store(Request $request)

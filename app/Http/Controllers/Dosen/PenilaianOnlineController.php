@@ -134,10 +134,10 @@ class PenilaianOnlineController extends Controller
 
         // ✅ Ambil kategori yang sudah digunakan (kecuali tugas)
         $usedCategories = Penilaian::where('kelas_id', $kelas->id)
-            ->where('mode_penilaian', 'online')
             ->whereIn('kategori', ['uts', 'uas'])
             ->pluck('kategori')
             ->toArray();
+
 
         return Inertia::render('Dosen/Kelas/Tugas/Penilaian/Online/Create', [
             'kelas' => [
@@ -185,7 +185,6 @@ class PenilaianOnlineController extends Controller
         if (in_array($data['kategori'], ['uts', 'uas'])) {
             $exists = Penilaian::where('kelas_id', $kelas->id)
                 ->where('kategori', $data['kategori'])
-                ->where('mode_penilaian', 'online')
                 ->exists();
 
             if ($exists) {
@@ -272,7 +271,6 @@ class PenilaianOnlineController extends Controller
 
         // ✅ Ambil kategori terpakai kecuali diri sendiri
         $usedCategories = Penilaian::where('kelas_id', $kelas->id)
-            ->where('mode_penilaian', 'online')
             ->where('id', '!=', $penilaian->id)
             ->whereIn('kategori', ['uts', 'uas'])
             ->pluck('kategori')
@@ -362,7 +360,6 @@ class PenilaianOnlineController extends Controller
             $exists = Penilaian::where('kelas_id', $kelas->id)
                 ->where('kategori', $data['kategori'])
                 ->where('id', '!=', $penilaian->id)
-                ->where('mode_penilaian', 'online')
                 ->exists();
 
             if ($exists) {

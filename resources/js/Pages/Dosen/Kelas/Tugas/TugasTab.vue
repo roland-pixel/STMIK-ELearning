@@ -95,6 +95,12 @@ const pickCreate = (type) => {
         );
     }
 
+    if (type === "penilaian_manual") {
+        router.visit(
+            route("dosen.kelas.penilaian.manual.create", props.kelas.uuid),
+        );
+    }
+
     closeCreate();
 };
 
@@ -200,39 +206,24 @@ const deletePenilaianOnline = (p) => {
         <div class="border-b border-gray-200 bg-white">
             <div class="mx-auto max-w-6xl px-6 py-4 flex items-center">
                 <div class="relative" data-create-wrap>
-                    <button
-                        type="button"
+                    <button type="button"
                         class="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow hover:bg-blue-700 active:translate-y-[1px] transition"
-                        @click.stop="toggleCreate"
-                    >
-                        <span
-                            class="grid h-6 w-6 place-items-center rounded-full bg-white/15"
-                        >
+                        @click.stop="toggleCreate">
+                        <span class="grid h-6 w-6 place-items-center rounded-full bg-white/15">
                             <svg viewBox="0 0 24 24" class="h-4 w-4">
-                                <path
-                                    d="M12 5v14M5 12h14"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                                    stroke-linecap="round"
-                                />
+                                <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" />
                             </svg>
                         </span>
                         Buat
                     </button>
 
                     <!-- Dropdown -->
-                    <div
-                        v-if="openCreate"
-                        class="absolute left-0 mt-3 w-72 rounded-xl bg-white shadow-xl ring-1 ring-black/10 overflow-hidden z-20"
-                    >
-                        <button
-                            type="button"
-                            class="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-gray-50"
-                            @click.stop="pickCreate('materi')"
-                        >
-                            <span
-                                class="grid h-9 w-9 place-items-center rounded-xl bg-gray-50 ring-1 ring-gray-200"
-                            >
+                    <div v-if="openCreate"
+                        class="absolute left-0 mt-3 w-72 rounded-xl bg-white shadow-xl ring-1 ring-black/10 overflow-hidden z-20">
+                        <button type="button" class="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-gray-50"
+                            @click.stop="pickCreate('materi')">
+                            <span class="grid h-9 w-9 place-items-center rounded-xl bg-gray-50 ring-1 ring-gray-200">
                                 📘
                             </span>
                             <div>
@@ -243,20 +234,29 @@ const deletePenilaianOnline = (p) => {
                             </div>
                         </button>
 
-                        <button
-                            type="button"
-                            class="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-gray-50"
-                            @click.stop="pickCreate('penilaian_online')"
-                        >
-                            <span
-                                class="grid h-9 w-9 place-items-center rounded-xl bg-gray-50 ring-1 ring-gray-200"
-                            >
+                        <button type="button" class="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-gray-50"
+                            @click.stop="pickCreate('penilaian_online')">
+                            <span class="grid h-9 w-9 place-items-center rounded-xl bg-gray-50 ring-1 ring-gray-200">
                                 📝
                             </span>
                             <div>
                                 <div class="font-medium">Penilaian Online</div>
                                 <div class="text-[11px] text-gray-500">
                                     Buat soal essai / PG / upload
+                                </div>
+                            </div>
+                        </button>
+
+                        <button type="button"
+                            class="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-gray-50 border-t border-gray-50"
+                            @click.stop="pickCreate('penilaian_manual')">
+                            <span class="grid h-9 w-9 place-items-center rounded-xl bg-gray-50 ring-1 ring-gray-200">
+                                📊
+                            </span>
+                            <div>
+                                <div class="font-medium">Penilaian Manual</div>
+                                <div class="text-[11px] text-gray-500">
+                                    Input nilai langsung
                                 </div>
                             </div>
                         </button>
@@ -268,10 +268,7 @@ const deletePenilaianOnline = (p) => {
         <!-- ================= CONTENT ================= -->
         <div class="mx-auto max-w-6xl px-6">
             <!-- EMPTY -->
-            <div
-                v-if="isEmpty"
-                class="py-20 flex flex-col items-center text-center"
-            >
+            <div v-if="isEmpty" class="py-20 flex flex-col items-center text-center">
                 <div class="text-6xl opacity-30">📂</div>
                 <div class="mt-6 text-sm font-semibold text-gray-800">
                     Di sinilah Anda akan memberikan tugas
@@ -286,67 +283,42 @@ const deletePenilaianOnline = (p) => {
             <div v-else class="py-6 space-y-6">
                 <!-- ================= PENILAIAN LIST ================= -->
                 <div v-if="penilaians.length" class="space-y-3">
-                    <div
-                        class="text-xs font-semibold text-gray-500 uppercase tracking-wide"
-                    >
+                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                         Penilaian Online
                     </div>
 
-                    <div
-                        v-for="p in penilaians"
-                        :key="p.id"
-                        class="rounded-2xl border transition"
-                        :class="
-                            openPenilaianId === p.id
-                                ? 'border-blue-600 bg-gray-50'
-                                : 'border-gray-200 bg-white hover:bg-gray-50'
-                        "
-                    >
+                    <div v-for="p in penilaians" :key="p.id" class="rounded-2xl border transition" :class="openPenilaianId === p.id
+                        ? 'border-blue-600 bg-gray-50'
+                        : 'border-gray-200 bg-white hover:bg-gray-50'
+                        ">
                         <!-- ROW -->
-                        <div
-                            class="px-5 py-4 flex items-center justify-between gap-4 cursor-pointer"
-                            @click="togglePenilaianDetail(p.id)"
-                        >
+                        <div class="px-5 py-4 flex items-center justify-between gap-4 cursor-pointer"
+                            @click="togglePenilaianDetail(p.id)">
                             <!-- kiri -->
                             <div class="flex items-center gap-4 min-w-0">
                                 <div class="shrink-0">
-                                    <div
-                                        class="w-10 h-10 rounded-full bg-gray-400 grid place-items-center text-white"
-                                        title="Penilaian"
-                                    >
-                                        <svg
-                                            viewBox="0 0 24 24"
-                                            class="w-5 h-5"
-                                        >
-                                            <path
-                                                fill="currentColor"
-                                                d="M4 4h16v14H7l-3 3V4zm4 3h8v2H8V7zm0 4h8v2H8v-2z"
-                                            />
+                                    <div class="w-10 h-10 rounded-full bg-gray-400 grid place-items-center text-white"
+                                        title="Penilaian">
+                                        <svg viewBox="0 0 24 24" class="w-5 h-5">
+                                            <path fill="currentColor"
+                                                d="M4 4h16v14H7l-3 3V4zm4 3h8v2H8V7zm0 4h8v2H8v-2z" />
                                         </svg>
                                     </div>
                                 </div>
 
                                 <div class="min-w-0">
-                                    <div
-                                        class="flex items-center gap-2 min-w-0"
-                                    >
-                                        <div
-                                            class="text-sm font-semibold text-gray-900 truncate"
-                                        >
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <div class="text-sm font-semibold text-gray-900 truncate">
                                             {{ p.judul }}
                                         </div>
                                         <span
                                             class="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1"
-                                            :class="kategoriBadge(p.kategori)"
-                                        >
+                                            :class="kategoriBadge(p.kategori)">
                                             {{ kategoriLabel(p.kategori) }}
                                         </span>
                                     </div>
 
-                                    <div
-                                        class="mt-1 text-xs text-gray-500 truncate"
-                                        v-if="p.instruksi"
-                                    >
+                                    <div class="mt-1 text-xs text-gray-500 truncate" v-if="p.instruksi">
                                         {{ p.instruksi }}
                                     </div>
                                 </div>
@@ -354,47 +326,31 @@ const deletePenilaianOnline = (p) => {
 
                             <!-- kanan -->
                             <div class="shrink-0 flex items-center gap-3">
-                                <div
-                                    class="text-sm text-gray-500 whitespace-nowrap"
-                                >
+                                <div class="text-sm text-gray-500 whitespace-nowrap">
                                     Diposting
                                     {{ formatTimeShort(p.created_at) }}
                                 </div>
 
                                 <div class="relative" data-row-menu @click.stop>
-                                    <button
-                                        type="button"
+                                    <button type="button"
                                         class="w-9 h-9 rounded-xl hover:bg-gray-100 grid place-items-center text-gray-700"
-                                        @click.stop="toggleMenu(`p-${p.id}`)"
-                                        title="Menu"
-                                    >
-                                        <svg
-                                            viewBox="0 0 24 24"
-                                            class="w-5 h-5"
-                                        >
-                                            <path
-                                                fill="currentColor"
-                                                d="M12 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"
-                                            />
+                                        @click.stop="toggleMenu(`p-${p.id}`)" title="Menu">
+                                        <svg viewBox="0 0 24 24" class="w-5 h-5">
+                                            <path fill="currentColor"
+                                                d="M12 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
                                         </svg>
                                     </button>
 
-                                    <div
-                                        v-if="openMenuId === `p-${p.id}`"
-                                        class="absolute right-0 mt-2 w-44 rounded-xl bg-white shadow-xl ring-1 ring-black/10 overflow-hidden z-[9999]"
-                                    >
-                                        <button
-                                            type="button"
+                                    <div v-if="openMenuId === `p-${p.id}`"
+                                        class="absolute right-0 mt-2 w-44 rounded-xl bg-white shadow-xl ring-1 ring-black/10 overflow-hidden z-[9999]">
+                                        <button type="button"
                                             class="w-full text-left px-4 py-3 text-sm hover:bg-gray-50"
-                                            @click="goEditPenilaianOnline(p)"
-                                        >
+                                            @click="goEditPenilaianOnline(p)">
                                             Edit
                                         </button>
-                                        <button
-                                            type="button"
+                                        <button type="button"
                                             class="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 text-rose-700"
-                                            @click="deletePenilaianOnline(p)"
-                                        >
+                                            @click="deletePenilaianOnline(p)">
                                             Hapus
                                         </button>
                                     </div>
@@ -404,15 +360,9 @@ const deletePenilaianOnline = (p) => {
 
                         <!-- DETAIL -->
                         <div v-if="openPenilaianId === p.id" class="px-5 pb-5">
-                            <div
-                                class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3"
-                            >
-                                <div
-                                    class="rounded-xl border border-gray-200 bg-white p-3"
-                                >
-                                    <div
-                                        class="text-xs font-semibold text-gray-800"
-                                    >
+                            <div class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div class="rounded-xl border border-gray-200 bg-white p-3">
+                                    <div class="text-xs font-semibold text-gray-800">
                                         Tenggat
                                     </div>
                                     <div class="mt-1 text-xs text-gray-600">
@@ -424,34 +374,23 @@ const deletePenilaianOnline = (p) => {
                                     </div>
                                 </div>
 
-                                <div
-                                    class="rounded-xl border border-gray-200 bg-white p-3"
-                                >
-                                    <div
-                                        class="text-xs font-semibold text-gray-800"
-                                    >
+                                <div class="rounded-xl border border-gray-200 bg-white p-3">
+                                    <div class="text-xs font-semibold text-gray-800">
                                         Ringkasan
                                     </div>
                                     <div class="mt-1 text-xs text-gray-600">
-                                        <span v-if="p.jumlah_soal != null"
-                                            >Soal: {{ p.jumlah_soal }}</span
-                                        >
+                                        <span v-if="p.jumlah_soal != null">Soal: {{ p.jumlah_soal }}</span>
                                         <span v-else>Soal: —</span>
                                         <span class="mx-2">•</span>
-                                        <span v-if="p.total_bobot != null"
-                                            >Total bobot:
-                                            {{ p.total_bobot }}</span
-                                        >
+                                        <span v-if="p.total_bobot != null">Total bobot:
+                                            {{ p.total_bobot }}</span>
                                         <span v-else>Total bobot: —</span>
                                     </div>
                                 </div>
                             </div>
 
-                            <button
-                                type="button"
-                                class="mt-4 text-sm font-semibold text-blue-600 hover:underline"
-                                @click.stop="goPenilaianOnline(p)"
-                            >
+                            <button type="button" class="mt-4 text-sm font-semibold text-blue-600 hover:underline"
+                                @click.stop="goPenilaianOnline(p)">
                                 Lihat penilaian
                             </button>
                         </div>
@@ -460,95 +399,60 @@ const deletePenilaianOnline = (p) => {
 
                 <!-- ================= MATERI LIST ================= -->
                 <div v-if="materis.length" class="space-y-3">
-                    <div
-                        class="text-xs font-semibold text-gray-500 uppercase tracking-wide"
-                    >
+                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                         Materi
                     </div>
 
-                    <div
-                        v-for="m in materis"
-                        :key="m.id"
-                        class="rounded-2xl border transition"
-                        :class="
-                            openMateriId === m.id
-                                ? 'border-blue-600 bg-gray-50'
-                                : 'border-gray-200 bg-white hover:bg-gray-50'
-                        "
-                    >
-                        <div
-                            class="px-5 py-4 flex items-center justify-between gap-4 cursor-pointer"
-                            @click="toggleMateriDetail(m.id)"
-                        >
+                    <div v-for="m in materis" :key="m.id" class="rounded-2xl border transition" :class="openMateriId === m.id
+                        ? 'border-blue-600 bg-gray-50'
+                        : 'border-gray-200 bg-white hover:bg-gray-50'
+                        ">
+                        <div class="px-5 py-4 flex items-center justify-between gap-4 cursor-pointer"
+                            @click="toggleMateriDetail(m.id)">
                             <div class="flex items-center gap-4 min-w-0">
                                 <div class="shrink-0">
-                                    <div
-                                        class="w-10 h-10 rounded-full bg-gray-400 grid place-items-center text-white"
-                                        title="Materi"
-                                    >
-                                        <svg
-                                            viewBox="0 0 24 24"
-                                            class="w-5 h-5"
-                                        >
-                                            <path
-                                                fill="currentColor"
-                                                d="M6 2h10a2 2 0 0 1 2 2v16a1 1 0 0 0-1-1H6a2 2 0 0 0-2 2V4a2 2 0 0 1 2-2zm1 2v13.5c.6-.3 1.3-.5 2-.5h7V4H7zm6 3v5l2-1 2 1V7h-4z"
-                                            />
+                                    <div class="w-10 h-10 rounded-full bg-gray-400 grid place-items-center text-white"
+                                        title="Materi">
+                                        <svg viewBox="0 0 24 24" class="w-5 h-5">
+                                            <path fill="currentColor"
+                                                d="M6 2h10a2 2 0 0 1 2 2v16a1 1 0 0 0-1-1H6a2 2 0 0 0-2 2V4a2 2 0 0 1 2-2zm1 2v13.5c.6-.3 1.3-.5 2-.5h7V4H7zm6 3v5l2-1 2 1V7h-4z" />
                                         </svg>
                                     </div>
                                 </div>
 
                                 <div class="min-w-0">
-                                    <div
-                                        class="text-sm font-semibold text-gray-900 truncate"
-                                    >
+                                    <div class="text-sm font-semibold text-gray-900 truncate">
                                         {{ m.judul }}
                                     </div>
                                 </div>
                             </div>
 
                             <div class="shrink-0 flex items-center gap-3">
-                                <div
-                                    class="text-sm text-gray-500 whitespace-nowrap"
-                                >
+                                <div class="text-sm text-gray-500 whitespace-nowrap">
                                     Diposting
                                     {{ formatTimeShort(m.created_at) }}
                                 </div>
 
                                 <div class="relative" data-row-menu @click.stop>
-                                    <button
-                                        type="button"
+                                    <button type="button"
                                         class="w-9 h-9 rounded-xl hover:bg-gray-100 grid place-items-center text-gray-700"
-                                        @click.stop="toggleMenu(`m-${m.id}`)"
-                                        title="Menu"
-                                    >
-                                        <svg
-                                            viewBox="0 0 24 24"
-                                            class="w-5 h-5"
-                                        >
-                                            <path
-                                                fill="currentColor"
-                                                d="M12 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"
-                                            />
+                                        @click.stop="toggleMenu(`m-${m.id}`)" title="Menu">
+                                        <svg viewBox="0 0 24 24" class="w-5 h-5">
+                                            <path fill="currentColor"
+                                                d="M12 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
                                         </svg>
                                     </button>
 
-                                    <div
-                                        v-if="openMenuId === `m-${m.id}`"
-                                        class="absolute right-0 mt-2 w-44 rounded-xl bg-white shadow-xl ring-1 ring-black/10 overflow-hidden z-[9999]"
-                                    >
-                                        <button
-                                            type="button"
+                                    <div v-if="openMenuId === `m-${m.id}`"
+                                        class="absolute right-0 mt-2 w-44 rounded-xl bg-white shadow-xl ring-1 ring-black/10 overflow-hidden z-[9999]">
+                                        <button type="button"
                                             class="w-full text-left px-4 py-3 text-sm hover:bg-gray-50"
-                                            @click="goEditMateri(m)"
-                                        >
+                                            @click="goEditMateri(m)">
                                             Edit
                                         </button>
-                                        <button
-                                            type="button"
+                                        <button type="button"
                                             class="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 text-rose-700"
-                                            @click="deleteMateri(m)"
-                                        >
+                                            @click="deleteMateri(m)">
                                             Hapus
                                         </button>
                                     </div>
@@ -557,56 +461,30 @@ const deletePenilaianOnline = (p) => {
                         </div>
 
                         <div v-if="openMateriId === m.id" class="px-5 pb-5">
-                            <div
-                                v-if="m.link_url || m.file_path"
-                                class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3"
-                            >
-                                <a
-                                    v-if="m.link_url"
-                                    :href="m.link_url"
-                                    target="_blank"
-                                    rel="noopener"
-                                    class="rounded-xl border border-gray-200 bg-white p-3 hover:bg-gray-50"
-                                    @click.stop
-                                >
-                                    <div
-                                        class="text-xs font-semibold text-gray-800"
-                                    >
+                            <div v-if="m.link_url || m.file_path" class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <a v-if="m.link_url" :href="m.link_url" target="_blank" rel="noopener"
+                                    class="rounded-xl border border-gray-200 bg-white p-3 hover:bg-gray-50" @click.stop>
+                                    <div class="text-xs font-semibold text-gray-800">
                                         Link
                                     </div>
-                                    <div
-                                        class="mt-1 text-xs text-gray-500 truncate"
-                                    >
+                                    <div class="mt-1 text-xs text-gray-500 truncate">
                                         {{ m.link_url }}
                                     </div>
                                 </a>
 
-                                <a
-                                    v-if="m.file_path"
-                                    :href="materiFileUrl(m)"
-                                    target="_blank"
-                                    rel="noopener"
-                                    class="rounded-xl border border-gray-200 bg-white p-3 hover:bg-gray-50"
-                                    @click.stop
-                                >
-                                    <div
-                                        class="text-xs font-semibold text-gray-800"
-                                    >
+                                <a v-if="m.file_path" :href="materiFileUrl(m)" target="_blank" rel="noopener"
+                                    class="rounded-xl border border-gray-200 bg-white p-3 hover:bg-gray-50" @click.stop>
+                                    <div class="text-xs font-semibold text-gray-800">
                                         File
                                     </div>
-                                    <div
-                                        class="mt-1 text-xs text-gray-500 truncate"
-                                    >
+                                    <div class="mt-1 text-xs text-gray-500 truncate">
                                         {{ m.file_path }}
                                     </div>
                                 </a>
                             </div>
 
-                            <button
-                                type="button"
-                                class="mt-4 text-sm font-semibold text-blue-600 hover:underline"
-                                @click.stop="goMateriIndex(m)"
-                            >
+                            <button type="button" class="mt-4 text-sm font-semibold text-blue-600 hover:underline"
+                                @click.stop="goMateriIndex(m)">
                                 Lihat materi
                             </button>
                         </div>

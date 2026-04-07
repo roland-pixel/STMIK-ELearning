@@ -13,26 +13,92 @@
         @endif
 
         {{-- Toolbar --}}
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <form method="GET" class="flex gap-2 w-full sm:w-auto">
-                <input type="text" name="q" value="{{ $q }}" placeholder="Cari nama/email/nim/jurusan..."
-                    class="w-full sm:w-80 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm
-                           focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition" />
+        {{-- Toolbar & Filters --}}
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <form method="GET" action="{{ route('admin.mahasiswas.index') }}" class="space-y-4">
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    {{-- Search Global --}}
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-xs font-semibold uppercase tracking-wider text-slate-500 ml-1">Pencarian</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-3 flex items-center text-slate-400">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </span>
+                            <input type="text" name="q" value="{{ $q }}"
+                                placeholder="Nama, NIM, atau Email..."
+                                class="w-full rounded-xl border border-slate-300 bg-white pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition" />
+                        </div>
+                    </div>
 
-                <button
-                    class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition">
-                    Cari
-                </button>
-            </form>
+                    {{-- Filter Jurusan --}}
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-xs font-semibold uppercase tracking-wider text-slate-500 ml-1">Jurusan</label>
+                        <select name="jurusan_id" onchange="this.form.submit()"
+                            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition appearance-none cursor-pointer">
+                            <option value="">Semua Jurusan</option>
+                            @foreach ($list_jurusan as $j)
+                                <option value="{{ $j->id }}" {{ $jurusan_id == $j->id ? 'selected' : '' }}>
+                                    {{ $j->nama_jurusan }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
 
-            <a href="{{ route('admin.mahasiswas.create') }}"
-                class="inline-flex items-center justify-center gap-2 rounded-xl bg-maroon-700 px-4 py-2 text-sm font-semibold text-white
+                    {{-- Filter Angkatan --}}
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-xs font-semibold uppercase tracking-wider text-slate-500 ml-1">Angkatan</label>
+                        <select name="angkatan" onchange="this.form.submit()"
+                            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition appearance-none cursor-pointer">
+                            <option value="">Semua Angkatan</option>
+                            @foreach ($list_angkatan as $a)
+                                <option value="{{ $a->angkatan }}" {{ $angkatan == $a->angkatan ? 'selected' : '' }}>
+                                    {{ $a->angkatan }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    {{-- Filter Status --}}
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-xs font-semibold uppercase tracking-wider text-slate-500 ml-1">Status
+                            Mahasiswa</label>
+                        <select name="status" onchange="this.form.submit()"
+                            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition appearance-none cursor-pointer">
+                            <option value="">Semua Status</option>
+                            <option value="aktif" {{ $status == 'aktif' ? 'selected' : '' }}>Aktif</option>
+                            <option value="lulus" {{ $status == 'lulus' ? 'selected' : '' }}>Lulus</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div
+                    class="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between border-t border-slate-100 mt-2">
+                    <div class="flex items-center gap-2">
+                        <button type="submit"
+                            class="rounded-xl bg-slate-900 px-6 py-2 text-sm font-medium text-white hover:bg-slate-800 transition">
+                            Terapkan Filter
+                        </button>
+                        @if ($q || $jurusan_id || $angkatan || $status)
+                            <a href="{{ route('admin.mahasiswas.index') }}"
+                                class="text-sm text-rose-600 hover:underline font-medium">
+                                Reset Filter
+                            </a>
+                        @endif
+                    </div>
+
+                    <a href="{{ route('admin.mahasiswas.create') }}"
+                        class="inline-flex items-center justify-center gap-2 rounded-xl bg-maroon-700 px-4 py-2 text-sm font-semibold text-white
                        hover:bg-maroon-800 transition shadow-[0_10px_22px_rgba(127,29,29,0.18)]">
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                </svg>
-                Tambah Mahasiswa
-            </a>
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                        Tambah Mahasiswa
+                    </a>
+                </div>
+            </form>
         </div>
 
         {{-- Table card --}}
@@ -134,7 +200,8 @@
                                                 </div>
 
                                                 <div class="flex-1">
-                                                    <h3 class="text-base font-semibold text-slate-900">Hapus Mahasiswa?</h3>
+                                                    <h3 class="text-base font-semibold text-slate-900">Hapus Mahasiswa?
+                                                    </h3>
                                                     <p class="mt-1 text-sm text-slate-600">
                                                         Menghapus mahasiswa ini juga akan menghapus akun user terkait.
                                                         <br>

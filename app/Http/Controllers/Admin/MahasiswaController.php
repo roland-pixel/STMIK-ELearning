@@ -16,36 +16,45 @@ class MahasiswaController extends Controller
 {
     public function index(Request $request)
     {
+        // Tangkap semua input filter
         $q = $request->get('q');
+        $angkatan = $request->get('angkatan');
+        $jurusan_id = $request->get('jurusan_id');
+        $status = $request->get('status');
 
         $mahasiswas = Mahasiswa::query()
             ->with(['user', 'jurusan'])
-            ->when(
-                $q,
-                fn($query) => $query
-                    ->where('nim', 'like', "%{$q}%")
-                    ->orWhere('angkatan', 'like', "%{$q}%")
-                    ->orWhere('status', 'like', "%{$q}%")
-                    ->orWhere('jenis_program', 'like', "%{$q}%")
-                    ->orWhere('status_masuk', 'like', "%{$q}%")
-                    ->orWhereHas(
-                        'user',
-                        fn($u) => $u
-                            ->where('nama_lengkap', 'like', "%{$q}%")
-                            ->orWhere('email', 'like', "%{$q}%")
-                    )
-                    ->orWhereHas(
-                        'jurusan',
-                        fn($j) => $j
-                            ->where('kode_jurusan', 'like', "%{$q}%")
-                            ->orWhere('nama_jurusan', 'like', "%{$q}%")
-                    )
-            )
+            // Filter Pencarian Global (NIM, Nama, dll)
+            ->when($q, function ($query) use ($q) {
+                $query->where(function ($query) use ($q) {
+                    $query->where('nim', 'like', "%{$q}%")
+                        ->orWhereHas('user', fn($u) => $u->where('nama_lengkap', 'like', "%{$q}%"));
+                });
+            })
+            // Filter Spesifik Angkatan
+            ->when($angkatan, fn($query) => $query->where('angkatan', $angkatan))
+            // Filter Spesifik Jurusan
+            ->when($jurusan_id, fn($query) => $query->where('jurusan_id', $jurusan_id))
+            // Filter Spesifik Status
+            ->when($status, fn($query) => $query->where('status', $status))
+
             ->latest()
             ->paginate(10)
             ->withQueryString();
 
-        return view('admin.mahasiswas.index', compact('mahasiswas', 'q'));
+        // Ambil data pendukung untuk dropdown filter di view
+        $list_jurusan = Jurusan::orderBy('nama_jurusan')->get(['id', 'nama_jurusan']);
+        $list_angkatan = Mahasiswa::select('angkatan')->distinct()->orderBy('angkatan', 'desc')->get();
+
+        return view('admin.mahasiswas.index', compact(
+            'mahasiswas',
+            'q',
+            'angkatan',
+            'jurusan_id',
+            'status',
+            'list_jurusan',
+            'list_angkatan'
+        ));
     }
 
     public function create()

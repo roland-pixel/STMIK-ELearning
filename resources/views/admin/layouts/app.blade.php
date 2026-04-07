@@ -65,9 +65,8 @@
         .scrollbar-hide {
             -ms-overflow-style: none;
             scrollbar-width: none;
-        }
+        }   
     </style>
-
     @stack('styles')
 </head>
 
