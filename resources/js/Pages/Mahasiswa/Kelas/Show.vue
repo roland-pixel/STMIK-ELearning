@@ -14,6 +14,7 @@ const props = defineProps({
     materis: { type: Array, default: () => [] },
     penilaians: { type: Array, default: () => [] },
     anggota: { type: Array, default: () => [] },
+    my_nilai: { type: Object, default: null },
 });
 
 const page = usePage();
@@ -69,38 +70,21 @@ const progressPct = (list) => {
             <HeaderTabs v-model:tab="tab" :tabs="tabs" />
 
             <!-- Flash -->
-            <div
-                v-if="page.props.flash?.success"
-                class="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-900"
-            >
+            <div v-if="page.props.flash?.success"
+                class="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-900">
                 {{ page.props.flash.success }}
             </div>
 
             <div class="mt-4">
-                <ForumTab
-                    v-if="tab === 'forum'"
-                    :kelas="kelas"
-                    :materis="materis"
-                    :penilaians="penilaians"
-                    :file-url="fileUrl"
-                    :progress-pct="progressPct"
-                />
+                <ForumTab v-if="tab === 'forum'" :kelas="kelas" :materis="materis" :penilaians="penilaians"
+                    :file-url="fileUrl" :progress-pct="progressPct" />
 
-                <TugasTab
-                    v-else-if="tab === 'tugas'"
-                    :kelas="kelas"
-                    :materis="materis"
-                    :penilaians="penilaians"
-                    :progress-pct="progressPct"
-                />
+                <TugasTab v-else-if="tab === 'tugas'" :kelas="kelas" :materis="materis" :penilaians="penilaians"
+                    :progress-pct="progressPct" />
 
-                <OrangTab
-                    v-else-if="tab === 'orang'"
-                    :kelas="kelas"
-                    :anggota="anggota"
-                />
+                <OrangTab v-else-if="tab === 'orang'" :kelas="kelas" :anggota="anggota" />
 
-                <NilaiTab v-else-if="tab === 'nilai'" :kelas="kelas" />
+                <NilaiTab v-else-if="tab === 'nilai'" :kelas="kelas" :my_nilai="props.my_nilai" />
             </div>
         </div>
     </AppLayout>

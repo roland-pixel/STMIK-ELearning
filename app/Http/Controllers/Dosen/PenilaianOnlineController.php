@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Dosen;
 use App\Http\Controllers\Controller;
 use App\Models\Kelas;
 use App\Models\OpsiJawaban;
+use App\Models\Pengumpulan;
 use App\Models\Penilaian;
 use App\Models\Pertanyaan;
 use App\Models\PertanyaanImage;
@@ -36,14 +37,26 @@ class PenilaianOnlineController extends Controller
 
     public function index(Request $request, Kelas $kelas)
     {
-        $this->ensureOwner($kelas);
+        // dd($request->all(),  Pengumpulan::find(31), Pengumpulan::where('id', 31)
+        //     ->with([
+        //         'mahasiswa.user',
+        //         'jawabanDetails',
+        //         'jawabanDetails.pertanyaan.opsiJawabans',
+        //     ])
+        //     ->first());
+        // $this->ensureOwner($kelas);
 
-        $openId = $request->query('open');
-        $openId = $openId ? (int) $openId : null;
 
+        // 1. Ambil Parameter Query
+        $openId = $request->query('open') ? (int) $request->query('open') : null;
+        $currentTab = $request->query('tab', 'pertanyaan');
         $with = $request->query('with', 'summary');
-        if ($openId) $with = 'full';
 
+        if ($openId) {
+            $with = 'full';
+        }
+
+        // 2. Query Utama Penilaian
         $query = Penilaian::query()
             ->where('kelas_id', $kelas->id)
             ->where('mode_penilaian', 'online')
@@ -53,6 +66,7 @@ class PenilaianOnlineController extends Controller
             $query->where('id', $openId);
         }
 
+        // Eager Loading
         if ($with === 'full') {
             $query->with([
                 'pertanyaans' => fn($q) => $q->orderBy('nomor_urut'),
@@ -72,8 +86,10 @@ class PenilaianOnlineController extends Controller
             ]);
         }
 
+        // 3. Mapping Data Penilaian
         $penilaians = $query->get()->map(function ($p) use ($with) {
             $pertanyaans = $p->pertanyaans ?? collect();
+
             $base = [
                 'id' => $p->id,
                 'uuid' => $p->uuid,
@@ -97,6 +113,7 @@ class PenilaianOnlineController extends Controller
                     'jenis_pertanyaan' => $pt->jenis_pertanyaan,
                     'bobot_soal' => (int) $pt->bobot_soal,
                 ];
+
                 if ($with === 'full') {
                     $row['opsi_jawabans'] = $pt->opsiJawabans->map(fn($o) => [
                         'id' => $o->id,
@@ -107,24 +124,96 @@ class PenilaianOnlineController extends Controller
                     $row['images'] = $pt->images->map(fn($img) => [
                         'id' => $img->id,
                         'path' => $img->path,
-                        'url' => Storage::disk('public')->url($img->path),
+                        'url' => \Storage::disk('public')->url($img->path),
                     ])->values();
                 }
+
                 return $row;
             })->values();
 
             return $base;
         });
 
-        return Inertia::render('Dosen/Kelas/Tugas/Penilaian/Online/Index', [
+        // 4. Logic Data Koreksi
+        $dataKoreksi = [];
+        $currentDetail = null;
+        $totalPoinKuis = 0;
+
+        if ($openId && $currentTab === 'jawaban') {
+
+            // 🔥 Ambil semua pengumpulan
+            $pengumpulans = Pengumpulan::where('penilaian_id', $openId)
+                ->with('mahasiswa.user:id,nama_lengkap,email')
+                ->get();
+
+            // 🔹 Dropdown mahasiswa
+            $dataKoreksi = $pengumpulans->map(fn($item) => [
+                'id' => $item->id,
+                'email' => $item->mahasiswa->user->email,
+                'nama' => $item->mahasiswa->user->nama_lengkap,
+            ]);
+
+            // 🔥 FIX UTAMA: AUTO PILIH MAHASISWA PERTAMA
+            $targetId = $request->query('pengumpulan_id');
+
+            if (!$targetId && $pengumpulans->isNotEmpty()) {
+                $targetId = $pengumpulans->first()->id;
+            }
+
+            // 🔥 Query detail jawaban
+            $pengumpulan = Pengumpulan::where('id', $targetId)
+                ->with([
+                    'mahasiswa.user',
+                    'jawabanDetails',
+                    'jawabanDetails.pertanyaan.opsiJawabans',
+                    'jawabanDetails.pertanyaan.images',
+                ])
+                ->first();
+
+            // 🔥 Mapping detail
+            if ($pengumpulan) {
+                $currentDetail = [
+                    'id' => $pengumpulan->id,
+                    'uuid' => $pengumpulan->uuid,
+                    'nilai_total' => $pengumpulan->nilai_total,
+                    'mahasiswa' => [
+                        'nama' => $pengumpulan->mahasiswa->user->nama_lengkap,
+                        'email' => $pengumpulan->mahasiswa->user->email,
+                    ],
+                    'jawaban' => $pengumpulan->jawabanDetails->map(fn($jd) => [
+                        'id' => $jd->id,
+                        'pertanyaan_id' => $jd->pertanyaan_id,
+                        'text_jawaban' => $jd->text_jawaban,
+                        'opsi_jawaban_id' => $jd->opsi_jawaban_id,
+                        'nilai_per_soal' => $jd->nilai_per_soal,
+                        'pertanyaan' => [
+                            'text' => $jd->pertanyaan->text_pertanyaan,
+                            'jenis' => $jd->pertanyaan->jenis_pertanyaan,
+                            'bobot' => (int) $jd->pertanyaan->bobot_soal,
+                            'opsi_opsi' => $jd->pertanyaan->opsiJawabans,
+                        ]
+                    ])->values(),
+
+                ];
+            }
+
+            // 🔹 Total poin
+            $totalPoinKuis = (int) Pertanyaan::where('penilaian_id', $openId)->sum('bobot_soal');
+        }
+
+        return \Inertia\Inertia::render('Dosen/Kelas/Tugas/Penilaian/Online/Index', [
             'kelas' => [
                 'id' => $kelas->id,
                 'uuid' => $kelas->uuid,
-                'nama' => $kelas->nama ?? null,
+                'nama' => $kelas->nama,
             ],
             'penilaians' => $penilaians,
-            'with' => $with,
             'open' => $openId,
+            'tab' => $currentTab,
+            'dataKoreksi' => $dataKoreksi,
+            'currentDetail' => $currentDetail,
+            'totalPoinKuis' => $totalPoinKuis,
+            'with' => $with,
         ]);
     }
 

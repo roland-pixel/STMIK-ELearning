@@ -51,6 +51,52 @@ class KelasDetailController extends Controller
             'semester:id,nama_semester,status_aktif,tanggal_mulai,tanggal_selesai',
         ]);
 
+        $rekapNilais = DB::table('anggota_kelases')
+            ->join('mahasiswas', 'anggota_kelases.mahasiswa_id', '=', 'mahasiswas.id')
+            ->leftJoin('users', 'mahasiswas.user_id', '=', 'users.id')
+            ->leftJoin('rekap_nilais', function ($join) use ($kelas) {
+                $join->on('anggota_kelases.mahasiswa_id', '=', 'rekap_nilais.mahasiswa_id')
+                    ->where('rekap_nilais.kelas_id', '=', $kelas->id);
+            })
+            ->where('anggota_kelases.kelas_id', $kelas->id)
+            ->select([
+                'anggota_kelases.id',
+                'mahasiswas.nim',
+                'mahasiswas.uuid as mahasiswa_uuid',
+                'users.nama_lengkap',
+                'users.email',
+                'users.avatar',
+                'rekap_nilais.total_tugas',
+                'rekap_nilais.total_uts',
+                'rekap_nilais.total_uas',
+                'rekap_nilais.nilai_akhir_angka',
+                'rekap_nilais.nilai_huruf',
+                'rekap_nilais.nilai_indeks',
+                'anggota_kelases.tanggal_gabung',
+            ])
+            ->orderBy('users.nama_lengkap')
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'id' => $row->id,
+                    'nim' => $row->nim,
+                    'mahasiswa_uuid' => $row->mahasiswa_uuid,
+                    'nama_lengkap' => $row->nama_lengkap,
+                    'email' => $row->email,
+                    'avatar' => $row->avatar,
+                    'tanggal_gabung' => $row->tanggal_gabung,
+                    'nilai' => [
+                        'total_tugas' => (float) ($row->total_tugas ?? 0),
+                        'total_uts' => (float) ($row->total_uts ?? 0),
+                        'total_uas' => (float) ($row->total_uas ?? 0),
+                        'nilai_akhir_angka' => (float) ($row->nilai_akhir_angka ?? 0),
+                        'nilai_huruf' => $row->nilai_huruf ?? '-',
+                        'nilai_indeks' => (float) ($row->nilai_indeks ?? 0),
+                    ]
+                ];
+            });
+
+
         // Materi
         $materis = $kelas->materis()
             ->latest()
@@ -161,6 +207,7 @@ class KelasDetailController extends Controller
             'materis' => $materis,
             'penilaians' => $penilaians,
             'anggota' => $anggota,
+            'rekap_nilais' => $rekapNilais,
         ]);
     }
 }

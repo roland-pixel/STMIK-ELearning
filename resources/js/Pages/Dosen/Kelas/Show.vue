@@ -15,6 +15,7 @@ const props = defineProps({
     materis: { type: Array, default: () => [] },
     penilaians: { type: Array, default: () => [] },
     anggota: { type: Array, default: () => [] },
+    rekap_nilais: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -46,54 +47,29 @@ const progressPct = (p) => {
 <template>
     <AppLayout :classes="classes" title="Classroom">
         <div class="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-0">
-            <HeaderTabs
-                v-model:tab="tab"
-                :tabs="tabs"
-                @open-settings="showSettings = true"
-            />
+            <HeaderTabs v-model:tab="tab" :tabs="tabs" @open-settings="showSettings = true" />
 
             <!-- Flash -->
-            <div
-                v-if="page.props.flash?.success"
-                class="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-900"
-            >
+            <div v-if="page.props.flash?.success"
+                class="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-900">
                 {{ page.props.flash.success }}
             </div>
 
             <!-- CONTENT -->
             <div class="mt-4">
-                <ForumTab
-                    v-if="tab === 'forum'"
-                    :kelas="kelas"
-                    :materis="materis"
-                    :penilaians="penilaians"
-                    :file-url="fileUrl"
-                    :progress-pct="progressPct"
-                />
+                <ForumTab v-if="tab === 'forum'" :kelas="kelas" :materis="materis" :penilaians="penilaians"
+                    :file-url="fileUrl" :progress-pct="progressPct" />
 
-                <TugasTab
-                    v-else-if="tab === 'tugas'"
-                    :kelas="kelas"
-                    :materis="materis"
-                    :penilaians="penilaians"
-                    :progress-pct="progressPct"
-                />
-                
+                <TugasTab v-else-if="tab === 'tugas'" :kelas="kelas" :materis="materis" :penilaians="penilaians"
+                    :progress-pct="progressPct" />
 
-                <OrangTab
-                    v-else-if="tab === 'orang'"
-                    :kelas="kelas"
-                    :anggota="anggota"
-                />
 
-                <NilaiTab v-else-if="tab === 'nilai'" :kelas="kelas" />
+                <OrangTab v-else-if="tab === 'orang'" :kelas="kelas" :anggota="anggota" />
+
+                <NilaiTab v-else-if="tab === 'nilai'" :kelas="kelas" :rekap_nilais="rekap_nilais" />
             </div>
         </div>
 
-        <SettingsModal
-            :open="showSettings"
-            :kelas="kelas"
-            @close="showSettings = false"
-        />
+        <SettingsModal :open="showSettings" :kelas="kelas" @close="showSettings = false" />
     </AppLayout>
 </template>

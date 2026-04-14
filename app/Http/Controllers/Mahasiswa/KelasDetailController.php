@@ -62,6 +62,50 @@ class KelasDetailController extends Controller
             'semester:id,nama_semester,status_aktif,tanggal_mulai,tanggal_selesai',
         ]);
 
+        // GANTI BAGIAN INI di KelasDetailController.php:
+        $nilaiPribadi = DB::table('anggota_kelases')
+            ->join('mahasiswas', 'anggota_kelases.mahasiswa_id', '=', 'mahasiswas.id')
+            ->leftJoin('users', 'mahasiswas.user_id', '=', 'users.id')
+            ->leftJoin('rekap_nilais', function ($join) use ($kelas) {
+                $join->on('anggota_kelases.mahasiswa_id', '=', 'rekap_nilais.mahasiswa_id')
+                    ->where('rekap_nilais.kelas_id', '=', $kelas->id);
+            })
+            ->where('anggota_kelases.mahasiswa_id', $mahasiswaId)
+            ->where('anggota_kelases.kelas_id', $kelas->id)
+            ->select([
+                'mahasiswas.nim',
+                'mahasiswas.uuid as mahasiswa_uuid',
+                'users.nama_lengkap',
+                'users.email',
+                'users.avatar',
+                'rekap_nilais.total_tugas',
+                'rekap_nilais.total_uts',
+                'rekap_nilais.total_uas',
+                'rekap_nilais.nilai_akhir_angka',
+                'rekap_nilais.nilai_huruf',
+                'rekap_nilais.nilai_indeks',
+            ])
+            ->first();
+
+        $myNilai = null;
+        if ($nilaiPribadi) {
+            $myNilai = [
+                'nim' => (string) $nilaiPribadi->nim,
+                'mahasiswa_uuid' => (string) $nilaiPribadi->mahasiswa_uuid,
+                'nama_lengkap' => (string) $nilaiPribadi->nama_lengkap,
+                'email' => (string) $nilaiPribadi->email,
+                'avatar' => $nilaiPribadi->avatar,
+                'nilai' => [
+                    'total_tugas' => (float) ($nilaiPribadi->total_tugas ?? 0),
+                    'total_uts' => (float) ($nilaiPribadi->total_uts ?? 0),
+                    'total_uas' => (float) ($nilaiPribadi->total_uas ?? 0),
+                    'nilai_akhir_angka' => (float) ($nilaiPribadi->nilai_akhir_angka ?? 0),
+                    'nilai_huruf' => (string) ($nilaiPribadi->nilai_huruf ?? '-'),
+                    'nilai_indeks' => (float) ($nilaiPribadi->nilai_indeks ?? 0),
+                ]
+            ];
+        }
+
         $materis = $kelas->materis()
             ->latest()
             ->get()
@@ -129,12 +173,25 @@ class KelasDetailController extends Controller
                 ],
             ]);
 
+        // dd([
+        //     'kelas_id' => $kelas->id,
+        //     'mahasiswa_id' => $mahasiswaId,
+        //     'nilaiPribadi' => $nilaiPribadi,
+        //     'exists_anggota' => DB::table('anggota_kelases')
+        //         ->where('kelas_id', $kelas->id)
+        //         ->where('mahasiswa_id', $mahasiswaId)
+        //         ->count()
+        // ]);
+
         return Inertia::render('Mahasiswa/Kelas/Show', [
             'kelas' => [
                 'id' => $kelas->id,
                 'uuid' => $kelas->uuid,
                 'nama_kelas' => $kelas->nama_kelas,
                 'deskripsi' => $kelas->deskripsi,
+                'persentase_tugas' => $kelas->persentase_tugas, // ✅ TAMBAH
+                'persentase_uts' => $kelas->persentase_uts, // ✅ TAMBAH
+                'persentase_uas' => $kelas->persentase_uas,
                 'theme' => $theme,
                 'dosen' => [
                     'nama_lengkap' => $kelas->dosen?->user?->nama_lengkap,
@@ -162,6 +219,7 @@ class KelasDetailController extends Controller
             'materis' => $materis,
             'penilaians' => $penilaians,
             'anggota' => $anggota,
+            'my_nilai' => $myNilai,
         ]);
     }
 }

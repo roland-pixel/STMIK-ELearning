@@ -14,6 +14,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Dosen\DashboardController as DosenDashboardController;
 use App\Http\Controllers\Dosen\KelasDetailController as DosenKelasDetailController;
 use App\Http\Controllers\Dosen\KelasController as DosenKelasController;
+use App\Http\Controllers\Dosen\KoreksiPenilaianController;
 use App\Http\Controllers\Dosen\MateriController as DosenMateriController;
 use App\Http\Controllers\Mahasiswa\MateriController as MahasiswaMateriController;
 use App\Http\Controllers\Dosen\PenilaianBimbinganController;
@@ -145,6 +146,8 @@ Route::middleware(['auth', 'role:dosen'])
                 Route::get('/{penilaian}/edit', [PenilaianOnlineController::class, 'edit'])->name('edit');
                 Route::put('/{penilaian}', [PenilaianOnlineController::class, 'update'])->name('update');
                 Route::delete('/{penilaian}', [PenilaianOnlineController::class, 'destroy'])->name('destroy');
+                Route::post('/{penilaian}/koreksi', [KoreksiPenilaianController::class, 'save'])
+                    ->name('koreksi.save');
             });
 
             Route::prefix('penilaian/manual')->name('penilaian.manual.')->group(function () {
