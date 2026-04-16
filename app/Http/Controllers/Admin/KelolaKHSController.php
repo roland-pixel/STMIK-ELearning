@@ -143,10 +143,12 @@ class KelolaKHSController extends Controller
         $pdf = PDF::loadView('admin.khs.cetak-khs', $data)
             ->setPaper('a4', 'portrait')
             ->setOptions([
-                'tempDir' => public_path(),
-                'chroot'  => public_path(),
+                // Gunakan folder storage yang sudah pasti punya izin tulis
+                'tempDir' => storage_path('app/public'),
+                'chroot'  => base_path(),
                 'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled' => true, // Jaga-jaga jika nanti tambah logo
+                'isRemoteEnabled' => true,
+                'defaultFont' => 'sans-serif',
             ]);
 
         return $pdf->stream($filename);
