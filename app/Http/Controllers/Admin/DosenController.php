@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Dosen;
+use App\Models\Jurusan;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -38,7 +39,8 @@ class DosenController extends Controller
 
     public function create()
     {
-        return view('admin.dosens.create');
+        $jurusans = Jurusan::all();
+        return view('admin.dosens.create', compact('jurusans'));
     }
 
     public function store(Request $request)
@@ -48,6 +50,7 @@ class DosenController extends Controller
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
             'nip' => ['required', 'string', 'max:50', 'unique:dosens,nip'],
+            'homebase' => ['required', 'exists:jurusans,nama_jurusan'],
         ]);
 
         DB::transaction(function () use ($validated) {
@@ -63,6 +66,7 @@ class DosenController extends Controller
                 'uuid' => (string) Str::uuid(),
                 'user_id' => $user->id,
                 'nip' => $validated['nip'],
+                'homebase' => $validated['homebase'],
             ]);
         });
 
@@ -74,7 +78,8 @@ class DosenController extends Controller
     public function edit(Dosen $dosen)
     {
         $dosen->load('user');
-        return view('admin.dosens.edit', compact('dosen'));
+        $jurusans = Jurusan::all();
+        return view('admin.dosens.edit', compact('dosen', 'jurusans'));
     }
 
     public function update(Request $request, Dosen $dosen)
@@ -96,6 +101,7 @@ class DosenController extends Controller
                 'max:50',
                 Rule::unique('dosens', 'nip')->ignore($dosen->id),
             ],
+            'homebase' => ['required', 'exists:jurusans,nama_jurusan'],
         ]);
 
         DB::transaction(function () use ($validated, $dosen) {
@@ -113,6 +119,7 @@ class DosenController extends Controller
 
             $dosen->update([
                 'nip' => $validated['nip'],
+                'homebase' => $validated['homebase'],
             ]);
         });
 

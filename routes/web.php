@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\DosenController;
 use App\Http\Controllers\Admin\InputNilaiManualController;
 use App\Http\Controllers\Admin\JurusanController;
 use App\Http\Controllers\Admin\KelasController as AdminKelasController;
+use App\Http\Controllers\Admin\KelolaKHSController;
 use App\Http\Controllers\Admin\MahasiswaController;
 use App\Http\Controllers\Admin\MataKuliahController;
 use App\Http\Controllers\Admin\ProfileController as AdminProfileController;
@@ -85,6 +86,12 @@ Route::middleware(['auth', 'role:admin'])
             Route::post('/store/{kelas_id}', [InputNilaiManualController::class, 'store'])->name('store');
         });
 
+        Route::prefix('khs')->name('khs.')->group(function () {
+            Route::get('/', [KelolaKHSController::class, 'index'])->name('index');
+            Route::get('/preview', [KelolaKHSController::class, 'previewKHS'])->name('preview');
+            Route::post('/cetak', [KelolaKHSController::class, 'cetakKHS'])->name('cetak');
+        });
+
         Route::resource('bimbingans', BimbinganController::class)
             ->except(['show']);
 
@@ -143,20 +150,20 @@ Route::middleware(['auth', 'role:dosen'])
                 Route::get('/create', [PenilaianOnlineController::class, 'create'])->name('create');
                 Route::post('/', [PenilaianOnlineController::class, 'store'])->name('store');
 
-                Route::get('/{penilaian}/edit', [PenilaianOnlineController::class, 'edit'])->name('edit');
-                Route::put('/{penilaian}', [PenilaianOnlineController::class, 'update'])->name('update');
-                Route::delete('/{penilaian}', [PenilaianOnlineController::class, 'destroy'])->name('destroy');
-                Route::post('/{penilaian}/koreksi', [KoreksiPenilaianController::class, 'save'])
-                    ->name('koreksi.save');
+                // ✅ UUID BINDING!
+                Route::get('/{penilaian:uuid}/edit', [PenilaianOnlineController::class, 'edit'])->name('edit');
+                Route::put('/{penilaian:uuid}', [PenilaianOnlineController::class, 'update'])->name('update');
+                Route::delete('/{penilaian:uuid}', [PenilaianOnlineController::class, 'destroy'])->name('destroy');
+                Route::post('/{penilaian:uuid}/koreksi', [KoreksiPenilaianController::class, 'save'])->name('koreksi.save');
             });
 
+            /** ===== Penilaian Manual ===== */
             Route::prefix('penilaian/manual')->name('penilaian.manual.')->group(function () {
                 Route::get('/create', [PenilaianManualController::class, 'create'])->name('create');
                 Route::post('/', [PenilaianManualController::class, 'store'])->name('store');
-
-                // Opsional: Jika ingin bisa mengedit nilai manual yang sudah diinput
-                // Route::get('/{penilaian}/edit', [PenilaianManualController::class, 'edit'])->name('edit');
-                // Route::put('/{penilaian}', [PenilaianManualController::class, 'update'])->name('update');
+                // ✅ UUID BINDING!
+                Route::get('/{penilaian:uuid}/edit', [PenilaianManualController::class, 'edit'])->name('edit');
+                Route::put('/{penilaian:uuid}', [PenilaianManualController::class, 'update'])->name('update');
             });
         });
     });

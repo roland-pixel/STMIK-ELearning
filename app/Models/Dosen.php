@@ -13,6 +13,7 @@ class Dosen extends Model
         'uuid',
         'user_id',
         'nip',
+        'homebase',
     ];
 
     public function user()

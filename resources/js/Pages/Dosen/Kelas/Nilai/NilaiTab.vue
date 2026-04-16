@@ -154,21 +154,21 @@ const avgNilaiAkhir = computed(() => {
                                 <!-- UTS ✅ SAFE ACCESS -->
                                 <td class="px-4 py-3 text-center">
                                     <span class="text-xs font-semibold text-gray-700">
-                                        {{ (mhs.nilai?.total_uts ?? 0).toFixed(1) }}
+                                        {{ (mhs.nilai?.total_uts ?? 0).toFixed(2) }}
                                     </span>
                                 </td>
 
                                 <!-- UAS ✅ SAFE ACCESS -->
                                 <td class="px-4 py-3 text-center">
                                     <span class="text-xs font-semibold text-gray-700">
-                                        {{ (mhs.nilai?.total_uas ?? 0).toFixed(1) }}
+                                        {{ (mhs.nilai?.total_uas ?? 0).toFixed(2) }}
                                     </span>
                                 </td>
 
                                 <!-- Nilai Akhir ✅ SAFE ACCESS -->
                                 <td class="px-4 py-3 text-center">
                                     <span class="text-sm font-extrabold text-gray-900">
-                                        {{ (mhs.nilai?.nilai_akhir_angka ?? 0).toFixed(1) }}
+                                        {{ (mhs.nilai?.nilai_akhir_angka ?? 0).toFixed(2) }}
                                     </span>
                                 </td>
 

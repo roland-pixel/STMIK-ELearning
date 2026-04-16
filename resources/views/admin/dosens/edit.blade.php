@@ -100,6 +100,28 @@
                                 @enderror
                             </div>
                         </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-ink-700">Homebase</label>
+                            <select name="homebase"
+                                class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm
+                focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition"
+                                required>
+                                <option value="" disabled {{ old('homebase') ? '' : 'selected' }}>-- Pilih Program
+                                    Studi --</option>
+
+                                @foreach ($jurusans as $j)
+                                    <option value="{{ $j->nama_jurusan }}" {{-- Logika: Utamakan input lama (jika error), kalau tidak ada pakai data dari DB --}}
+                                        {{ old('homebase', $dosen->homebase) == $j->nama_jurusan ? 'selected' : '' }}>
+                                        {{ $j->nama_jurusan }} ({{ $j->jenjang }})
+                                    </option>
+                                @endforeach
+                            </select>
+
+                            @error('homebase')
+                                <p class="mt-1 text-sm text-rose-700">{{ $message }}</p>
+                            @enderror
+                        </div>
                     </div>
 
                     {{-- Divider --}}

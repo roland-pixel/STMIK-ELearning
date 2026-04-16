@@ -8,6 +8,7 @@ use App\Models\JawabanDetail;
 use App\Models\Kelas;
 use App\Models\Penilaian;
 use App\Models\Pengumpulan;
+use App\Models\RekapNilai;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -133,66 +134,26 @@ class PengerjaanPenilaianController extends Controller
             'jawaban.*.pertanyaan_id' => 'required|exists:pertanyaans,id',
             'jawaban.*.opsi_jawaban_id' => 'nullable|exists:opsi_jawabans,id',
             'jawaban.*.text_jawaban' => 'nullable|string',
-            'jawaban.*.file' => 'nullable|file|max:10240', // max 10MB
+            'jawaban.*.file' => 'nullable|file|max:10240',
         ]);
 
         DB::beginTransaction();
         try {
-            $nilaiTotalPG = 0;
+            // ✅ HITUNG NILAI TOTAL SAMA SEPERTI MANUAL: (sum nilai_per_soal / sum bobot_soal) * 100
+            $this->simpanJawabanDanHitungNilai($request, $pengumpulan, $penilaian);
 
-            // Cek apakah kuis ini mengandung unsur manual grading
+            // ✅ UPDATE REKAP NILAI OTOMATIS
+            $this->regenerateRekapNilai($pengumpulan->id);
+
+            DB::commit();
+
             $hasManualGrading = $penilaian->pertanyaans()
                 ->whereIn('jenis_pertanyaan', ['essai', 'upload_file'])
                 ->exists();
 
-            foreach ($request->jawaban as $item) {
-                $pertanyaan = $penilaian->pertanyaans()->find($item['pertanyaan_id']);
-                $nilaiPerSoal = 0;
-                $filePath = null;
-
-                // Handle File (tetap sama)
-                if ($request->hasFile("jawaban.{$item['pertanyaan_id']}.file")) {
-                    $file = $request->file("jawaban.{$item['pertanyaan_id']}.file");
-                    $filePath = $file->store("pengumpulan/{$pengumpulan->uuid}", 'public');
-                }
-
-                // Auto-grading PG
-                if ($pertanyaan->jenis_pertanyaan === 'pilihan_ganda' && !empty($item['opsi_jawaban_id'])) {
-                    $isCorrect = DB::table('opsi_jawabans')
-                        ->where('id', $item['opsi_jawaban_id'])
-                        ->where('is_benar', true)
-                        ->exists();
-
-                    if ($isCorrect) {
-                        $nilaiPerSoal = $pertanyaan->bobot_soal;
-                    }
-                    $nilaiTotalPG += $nilaiPerSoal;
-                }
-
-                JawabanDetail::create([
-                    'pengumpulan_id' => $pengumpulan->id,
-                    'pertanyaan_id' => $pertanyaan->id,
-                    'opsi_jawaban_id' => $item['opsi_jawaban_id'] ?? null,
-                    'text_jawaban' => $item['text_jawaban'] ?? null,
-                    'file_jawaban' => $filePath,
-                    'nilai_per_soal' => ($pertanyaan->jenis_pertanyaan === 'pilihan_ganda') ? $nilaiPerSoal : null,
-                    // Kita set NULL untuk essai agar dosen tahu ini belum dinilai
-                ]);
-            }
-
-            // Update status pengumpulan
-            $pengumpulan->update([
-                'waktu_selesai' => Carbon::now(),
-                // Jika ada essai, nilai total sementara adalah nilai PG saja, 
-                // atau bisa kamu set 0 dulu sampai dosen selesai koreksi.
-                'nilai_total' => $nilaiTotalPG,
-            ]);
-
-            DB::commit();
-
             $msg = $hasManualGrading
-                ? 'Jawaban berhasil dikirim. Nilai akan muncul setelah dikoreksi dosen.'
-                : 'Jawaban berhasil dikirim.';
+                ? 'Jawaban berhasil dikirim. Nilai akan final setelah dikoreksi dosen.'
+                : '✅ Jawaban berhasil dikirim & dinilai otomatis!';
 
             return redirect()->route('mahasiswa.kelas.penilaian.online.show', [$kelas->uuid, $penilaian->uuid])
                 ->with('success', $msg);
@@ -200,5 +161,160 @@ class PengerjaanPenilaianController extends Controller
             DB::rollBack();
             return back()->withErrors(['message' => 'Terjadi kesalahan: ' . $e->getMessage()]);
         }
+    }
+
+    private function simpanJawabanDanHitungNilai($request, $pengumpulan, $penilaian)
+    {
+        foreach ($request->jawaban as $item) {
+            $pertanyaan = $penilaian->pertanyaans()->find($item['pertanyaan_id']);
+            $nilaiPerSoal = 0;
+            $filePath = null;
+
+            // Handle File
+            if ($request->hasFile("jawaban.{$item['pertanyaan_id']}.file")) {
+                $file = $request->file("jawaban.{$item['pertanyaan_id']}.file");
+                $filePath = $file->store("pengumpulan/{$pengumpulan->uuid}", 'public');
+            }
+
+            // Auto-grading PG
+            if ($pertanyaan->jenis_pertanyaan === 'pilihan_ganda' && !empty($item['opsi_jawaban_id'])) {
+                $isCorrect = DB::table('opsi_jawabans')
+                    ->where('id', $item['opsi_jawaban_id'])
+                    ->where('is_benar', true)
+                    ->exists();
+
+                if ($isCorrect) {
+                    $nilaiPerSoal = $pertanyaan->bobot_soal; // Full bobot jika benar
+                }
+            }
+
+            JawabanDetail::create([
+                'pengumpulan_id' => $pengumpulan->id,
+                'pertanyaan_id' => $pertanyaan->id,
+                'opsi_jawaban_id' => $item['opsi_jawaban_id'] ?? null,
+                'text_jawaban' => $item['text_jawaban'] ?? null,
+                'file_jawaban' => $filePath,
+                'nilai_per_soal' => $nilaiPerSoal,
+            ]);
+        }
+
+        // ✅ RUMUS SAMA: (SUM(nilai_per_soal) / SUM(bobot_soal)) * 100
+        $this->updatePengumpulanTotal($pengumpulan->id);
+
+        $pengumpulan->update(['waktu_selesai' => Carbon::now()]);
+    }
+
+    /**
+     * Hitung ulang nilai_total pengumpulan ✅ SAMA PERSIS
+     */
+    private function updatePengumpulanTotal($pengumpulanId)
+    {
+        $data = JawabanDetail::select('jawaban_details.nilai_per_soal', 'pertanyaans.bobot_soal')
+            ->join('pertanyaans', 'jawaban_details.pertanyaan_id', '=', 'pertanyaans.id')
+            ->where('jawaban_details.pengumpulan_id', $pengumpulanId)
+            ->get();
+
+        $nilaiTotal = 0;
+        if (!$data->isEmpty()) {
+            $sumNilai = $data->sum('nilai_per_soal');
+            $sumBobot = $data->sum('bobot_soal');
+            $nilaiTotal = $sumBobot > 0 ? round(($sumNilai / $sumBobot) * 100, 2) : 0;
+        }
+
+        Pengumpulan::where('id', $pengumpulanId)->update(['nilai_total' => $nilaiTotal]);
+    }
+
+    /**
+     * Regenerate rekap_nilais ✅ SAMA PERSIS
+     */
+    /**
+     * Regenerate rekap_nilais ✅ SUDAH RATA‑RATA BERDASARKAN JUMLAH TUGAS DI KELAS
+     */
+    private function regenerateRekapNilai($pengumpulanId)
+    {
+        $pengumpulan = Pengumpulan::with(['penilaian.kelas', 'mahasiswa'])->find($pengumpulanId);
+        $mahasiswaId = $pengumpulan->mahasiswa_id;
+        $kelasId = $pengumpulan->penilaian->kelas_id;
+        $kelas = Kelas::find($kelasId);
+
+        // 1. Semua pengumpulan mahasiswa di kelas ini
+        $semuaPengumpulan = Pengumpulan::whereHas('penilaian', fn($q) => $q->where('kelas_id', $kelasId))
+            ->where('mahasiswa_id', $mahasiswaId)
+            ->get()
+            ->groupBy('penilaian.kategori');
+
+        // 2. Hitung jumlah total tugas di kelas (bukan yang dikerjakan)
+        $totalTugasDiKelas = Penilaian::where('kelas_id', $kelasId)
+            ->where('kategori', 'tugas')
+            ->count();
+
+        // 3. Hitung total nilai tugas yang sudah dikerjakan
+        $pengumpulanTugas = $semuaPengumpulan->get('tugas', collect());
+        $sumNilaiTugas = $pengumpulanTugas->sum('nilai_total'); // misal 100
+
+        // 4. total_tugas = rata‑rata dari semua tugas kelas (termasuk yang 0)
+        $totalTugas = $totalTugasDiKelas > 0
+            ? $sumNilaiTugas / $totalTugasDiKelas   // (100 + 0 + 0) / 3 → 33.33
+            : 0;
+
+        // 5. UTS & UAS tetap 1 item (0 kalau kosong)
+        $totalUts = $this->hitungRataRataKategori($semuaPengumpulan, 'uts');
+        $totalUas = $this->hitungRataRataKategori($semuaPengumpulan, 'uas');
+
+        // 6. Hitung nilai akhir
+        $nilaiAkhir = round(
+            ($totalTugas * $kelas->persentase_tugas / 100) +
+                ($totalUts * $kelas->persentase_uts / 100) +
+                ($totalUas * $kelas->persentase_uas / 100),
+            2
+        );
+
+        RekapNilai::updateOrCreate(
+            ['mahasiswa_id' => $mahasiswaId, 'kelas_id' => $kelasId],
+            [
+                'semester_id' => $kelas->semester_id,
+                'mata_kuliah_id' => $kelas->mata_kuliah_id,
+                'total_tugas' => $totalTugas,
+                'total_uts' => $totalUts,
+                'total_uas' => $totalUas,
+                'nilai_akhir_angka' => $nilaiAkhir,
+                'nilai_huruf' => $this->konversiHuruf($nilaiAkhir),
+                'nilai_indeks' => $this->konversiIndeks($nilaiAkhir),
+            ]
+        );
+    }
+
+    private function hitungRataRataKategori($semuaPengumpulan, $kategori)
+    {
+        $pengumpulanKategori = $semuaPengumpulan->get($kategori, collect());
+        return $pengumpulanKategori->isEmpty() ? 0 : round($pengumpulanKategori->avg('nilai_total'), 2);
+    }
+
+    private function konversiHuruf($nilai)
+    {
+        if ($nilai >= 90) return 'A';
+        if ($nilai >= 86) return 'A-';
+        if ($nilai >= 80) return 'B+';
+        if ($nilai >= 76) return 'B';
+        if ($nilai >= 70) return 'B-';
+        if ($nilai >= 66) return 'C+';
+        if ($nilai >= 60) return 'C';
+        if ($nilai >= 55) return 'C-';
+        if ($nilai >= 40) return 'D';
+        return 'E';
+    }
+
+    private function konversiIndeks($nilai)
+    {
+        if ($nilai >= 90) return 4.0;
+        if ($nilai >= 86) return 3.5;
+        if ($nilai >= 80) return 3.25;
+        if ($nilai >= 76) return 3.0;
+        if ($nilai >= 70) return 2.75;
+        if ($nilai >= 66) return 2.5;
+        if ($nilai >= 60) return 2.0;
+        if ($nilai >= 55) return 1.5;
+        if ($nilai >= 40) return 1.0;
+        return 0.0;
     }
 }

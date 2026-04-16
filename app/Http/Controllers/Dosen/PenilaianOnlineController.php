@@ -422,60 +422,118 @@ class PenilaianOnlineController extends Controller
         $this->ensurePenilaianInKelas($kelas, $penilaian);
         $this->ensurePenilaianOnline($penilaian);
 
+        $allowedIds = $kelas->anggotaKelases()->pluck('mahasiswa_id')->toArray();
+
+        // ✅ VALIDASI
         $data = $request->validate([
-            'judul' => ['required', 'string', 'max:255'],
-            'instruksi' => ['nullable', 'string'],
-            'kategori' => ['required', 'in:tugas,uts,uas'],
-            'tenggat_waktu' => ['nullable', 'date'],
-            'pertanyaans' => ['required', 'array', 'min:1'],
-            'pertanyaans.*.id' => ['nullable', 'integer'],
-            'pertanyaans.*.client_key' => ['required', 'string', 'max:100'],
+            'judul' => ['sometimes', 'required', 'string', 'max:255'],
+            'instruksi' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'kategori' => ['sometimes', 'in:tugas,uts,uas'],
+            'tenggat_waktu' => ['sometimes', 'nullable', 'date'],
+            'pertanyaans' => ['sometimes', 'required', 'array', 'min:1'],
+            'pertanyaans.*.id' => ['nullable', 'exists:pertanyaans,id'],
+            'pertanyaans.*.client_key' => ['nullable', 'string'],
             'pertanyaans.*.nomor_urut' => ['required', 'integer', 'min:1'],
             'pertanyaans.*.text_pertanyaan' => ['required', 'string'],
             'pertanyaans.*.jenis_pertanyaan' => ['required', 'in:essai,pilihan_ganda,upload_file'],
             'pertanyaans.*.bobot_soal' => ['nullable', 'integer', 'min:0'],
             'pertanyaans.*.opsi_jawabans' => ['nullable', 'array'],
+            'pertanyaans.*.opsi_jawabans.*.id' => ['nullable', 'exists:opsi_jawabans,id'],
             'pertanyaans.*.opsi_jawabans.*.teks_opsi' => ['required_with:pertanyaans.*.opsi_jawabans', 'string', 'max:255'],
             'pertanyaans.*.opsi_jawabans.*.is_benar' => ['nullable', 'boolean'],
             'images' => ['nullable', 'array'],
             'images.*' => ['nullable', 'array'],
-            'images.*.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'images.*.*' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'remove_image_ids' => ['nullable', 'array'],
             'remove_image_ids.*' => ['integer'],
         ]);
 
-        // ✅ Validasi Backend: UTS/UAS cuma boleh satu (kecuali diri sendiri)
-        if (in_array($data['kategori'], ['uts', 'uas'])) {
-            $exists = Penilaian::where('kelas_id', $kelas->id)
-                ->where('kategori', $data['kategori'])
-                ->where('id', '!=', $penilaian->id)
-                ->exists();
-
-            if ($exists) {
-                return back()->withErrors([
-                    'kategori' => "Sudah ada penilaian " . strtoupper($data['kategori']) . " lain di kelas ini."
-                ]);
-            }
-        }
-
-        // Logic sync pertanyaan & gambar (sama seperti kode sebelumnya)
-        DB::beginTransaction();
-        try {
-            $penilaian->update([
-                'judul' => $data['judul'],
+        // 🔥 FIX UTAMA: $request DI-USE KE CLOSURE
+        return DB::transaction(function () use ($request, $kelas, $penilaian, $data) {
+            // 1. Update penilaian utama
+            $penilaianUpdate = array_filter([
+                'judul' => $data['judul'] ?? null,
                 'instruksi' => $data['instruksi'] ?? null,
-                'kategori' => $data['kategori'],
+                'kategori' => $data['kategori'] ?? null,
                 'tenggat_waktu' => $data['tenggat_waktu'] ?? null,
-            ]);
+            ], fn($value) => $value !== null);
 
-            // ... (Kode sync gambar & pertanyaan dilanjutkan sesuai logika Anda sebelumnya) ...
+            if (!empty($penilaianUpdate)) {
+                $penilaian->update($penilaianUpdate);
+            }
 
-            DB::commit();
-            return redirect()->route('dosen.kelas.show', $kelas->uuid)->with('success', 'Penilaian online berhasil diperbarui.');
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            throw $e;
-        }
+            // 2. Hapus gambar yang di-remove
+            if (!empty($data['remove_image_ids'] ?? [])) {
+                PertanyaanImage::whereIn('id', $data['remove_image_ids'])
+                    ->whereHas('pertanyaan', fn($q) => $q->where('penilaian_id', $penilaian->id))
+                    ->chunk(100, function ($images) {
+                        foreach ($images as $img) {
+                            Storage::disk('public')->delete($img->path);
+                            $img->delete();
+                        }
+                    });
+            }
+
+            // 3. Process pertanyaans
+            if (!empty($data['pertanyaans'])) {
+                $existingPertanyaans = Pertanyaan::where('penilaian_id', $penilaian->id)->get();
+
+                foreach ($data['pertanyaans'] as $qData) {
+                    $pertanyaanId = $qData['id'] ?? null;
+                    $pertanyaan = $existingPertanyaans->firstWhere('id', $pertanyaanId);
+
+                    if ($pertanyaan) {
+                        // UPDATE existing
+                        $pertanyaan->update([
+                            'nomor_urut' => (int) $qData['nomor_urut'],
+                            'text_pertanyaan' => $qData['text_pertanyaan'],
+                            'jenis_pertanyaan' => $qData['jenis_pertanyaan'],
+                            'bobot_soal' => (int) ($qData['bobot_soal'] ?? 0),
+                        ]);
+                    } else {
+                        // CREATE new
+                        $pertanyaan = Pertanyaan::create([
+                            'penilaian_id' => $penilaian->id,
+                            'nomor_urut' => (int) $qData['nomor_urut'],
+                            'text_pertanyaan' => $qData['text_pertanyaan'],
+                            'jenis_pertanyaan' => $qData['jenis_pertanyaan'],
+                            'bobot_soal' => (int) ($qData['bobot_soal'] ?? 0),
+                        ]);
+                    }
+
+                    // 🔥 SEKARANG $request TERSEDIA - Upload new images
+                    $clientKey = $qData['client_key'] ?? $pertanyaan->id;
+                    $files = $request->file("images.{$clientKey}", []);
+
+                    if (is_array($files)) {
+                        foreach ($files as $file) {
+                            if (!$file) continue;
+                            $path = $file->store("penilaian/{$penilaian->uuid}/pertanyaan/{$pertanyaan->id}", 'public');
+                            PertanyaanImage::create([
+                                'pertanyaan_id' => $pertanyaan->id,
+                                'path' => $path,
+                            ]);
+                        }
+                    }
+
+                    // Update opsi jawaban (pilihan ganda)
+                    if (isset($qData['opsi_jawabans']) && $qData['jenis_pertanyaan'] === 'pilihan_ganda') {
+                        OpsiJawaban::where('pertanyaan_id', $pertanyaan->id)->delete();
+
+                        foreach ($qData['opsi_jawabans'] as $opsi) {
+                            OpsiJawaban::create([
+                                'pertanyaan_id' => $pertanyaan->id,
+                                'teks_opsi' => $opsi['teks_opsi'],
+                                'is_benar' => (bool) ($opsi['is_benar'] ?? false),
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            return redirect()->route('dosen.kelas.show', $kelas->uuid)
+                ->with('success', 'Penilaian online berhasil diperbarui.');
+        });
     }
 
     public function destroy(Kelas $kelas, Penilaian $penilaian)

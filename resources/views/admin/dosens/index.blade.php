@@ -49,7 +49,10 @@
                                 Email</th>
                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">NIP
                             </th>
-                            <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                homebase
+                            </th>
+                            <th class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-600">
                                 Aksi</th>
                         </tr>
                     </thead>
@@ -71,6 +74,10 @@
 
                                 <td class="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">
                                     {{ $item->nip }}
+                                </td>
+
+                                <td class="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">
+                                    {{ $item->homebase }}
                                 </td>
 
                                 <td class="px-4 py-3 text-right">

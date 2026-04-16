@@ -89,7 +89,7 @@ const saveSkor = async () => {
     try {
         await router.post(route('dosen.kelas.penilaian.online.koreksi.save', {
             kelas: props.kelasUuid,
-            penilaian: props.penilaian.id
+            penilaian: props.penilaian.uuid
         }), {
             pengumpulan_id: props.currentDetail.id,
             jawaban: props.currentDetail.jawaban.map(j => ({
@@ -152,11 +152,11 @@ const getStatusBorder = (score, max) => {
             <div v-if="currentDetail && currentDetail.jawaban?.length"
                 class="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-purple-50 to-indigo-50">
                 <div class="flex items-center gap-3">
-                    <span class="text-2xl font-bold text-purple-700">{{ totalLokal.toFixed(1) }}</span>
+                    <span class="text-2xl font-bold text-purple-700">{{ currentDetail.nilai_total.toFixed(1) }}</span>
                     <span class="text-sm text-gray-600 bg-white px-2 py-1 rounded-full">
-                        {{ currentDetail.nilai_total.toFixed(1) }} → {{ totalLokal.toFixed(1) }}
+                        {{ currentDetail.nilai_total.toFixed(1) }} → 100
                     </span>
-                    <span class="text-sm text-gray-500">dari {{ totalPoinKuis }} poin</span>
+                    <span class="text-sm text-gray-500">dari 100 poin</span>
                 </div>
                 <button @click="saveSkor" :disabled="!isDirty || isSaving" :class="[
                     'text-sm font-medium px-4 py-2 rounded-md shadow transition-all',

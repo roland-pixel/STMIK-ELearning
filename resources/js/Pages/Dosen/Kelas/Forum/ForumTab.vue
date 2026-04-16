@@ -157,8 +157,11 @@ const forumItems = computed(() => {
 
     const penilaianItems = (props.penilaians ?? []).map((p) => ({
         type: "penilaian",
-        id: `penilaian-${p.id}`,
-        penilaian_id: p.id,
+        id: `penilaian-${p.id}`,           // UI ID
+        penilaian_id: p.id,                // Untuk ?open=
+        uuid: p.uuid,                      // ✅ Route binding
+        mode_penilaian: p.mode_penilaian,  // ✅ Manual/Online
+        kategori: p.kategori,
         title: p.judul,
         created_at: p.created_at,
     }));
@@ -240,28 +243,27 @@ const deleteItem = (it) => {
 const goItem = (it) => {
     if (!it) return;
 
-    // klik materi
     if (it.type === "materi") {
-        const base = safeRoute(
-            "dosen.kelas.materi.index",
-            { kelas: props.kelas.uuid },
-            null,
-        );
-        if (!base) return;
-
+        const base = safeRoute("dosen.kelas.materi.index", { kelas: props.kelas.uuid });
         router.visit(`${base}?open=${it.materi_id}`);
         return;
     }
 
-    // klik penilaian
     if (it.type === "penilaian") {
-        const base = safeRoute(
-            "dosen.kelas.penilaian.online.index",
-            { kelas: props.kelas.uuid },
-        );
-        if (!base) return;
+        console.log('Penilaian clicked:', it);
 
-        router.visit(`${base}?open=${it.penilaian_id}&tab=pertanyaan`);
+        // ✅ MANUAL → EDIT UUID
+        if (it.mode_penilaian === 'manual') {
+            router.visit(route("dosen.kelas.penilaian.manual.edit", {
+                kelas: props.kelas.uuid,
+                penilaian: it.uuid  // ✅ UUID!
+            }));
+            return;
+        }
+
+        // ✅ ONLINE → INDEX + open ID
+        const base = safeRoute("dosen.kelas.penilaian.online.index", { kelas: props.kelas.uuid });
+        router.visit(`${base}?open=${it.penilaian_id}&tab=pertanyaan`);  // ✅ penilaian_id!
         return;
     }
 };
@@ -343,16 +345,16 @@ const goItem = (it) => {
                     <div class="space-y-2 px-2 py-2">
                         <div v-for="it in forumItems" :key="it.id"
                             class="px-6 py-4 flex items-center justify-between gap-4 rounded-xl" :class="it.type === 'materi' || it.type === 'penilaian'
-                                    ? 'cursor-pointer hover:bg-gray-50'
-                                    : ''
+                                ? 'cursor-pointer hover:bg-gray-50'
+                                : ''
                                 " @click="goItem(it)">
                             <!-- kiri -->
                             <div class="flex items-center gap-4 min-w-0">
                                 <div class="shrink-0">
                                     <div class="w-10 h-10 rounded-full grid place-items-center text-white"
                                         :class="itemIconClass" :title="it.type === 'materi'
-                                                ? 'Materi'
-                                                : 'Penilaian'
+                                            ? 'Materi'
+                                            : 'Penilaian'
                                             ">
                                         <svg v-if="it.type === 'materi'" viewBox="0 0 24 24" class="w-5 h-5">
                                             <path fill="currentColor"

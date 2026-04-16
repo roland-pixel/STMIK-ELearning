@@ -36,4 +36,9 @@ class Penilaian extends Model
     {
         return $this->hasMany(Pertanyaan::class);
     }
+
+    public function getRouteKeyName()
+    {
+        return 'uuid'; // ✅ IMPORTANT!
+    }
 }

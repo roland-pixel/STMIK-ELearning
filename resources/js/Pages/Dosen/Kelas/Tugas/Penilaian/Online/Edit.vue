@@ -311,7 +311,7 @@ const submit = () => {
     router.post(
         route("dosen.kelas.penilaian.online.update", {
             kelas: props.kelas.uuid,
-            penilaian: props.penilaian.id,
+            penilaian: props.penilaian.uuid,
         }),
         fd,
         {
