@@ -141,7 +141,13 @@ class KelolaKHSController extends Controller
         $filename = "KHS-{$mahasiswa->nim}-" . Str::slug($semester->nama_semester) . "-" . now()->format('Ymd') . ".pdf";
 
         $pdf = PDF::loadView('admin.khs.cetak-khs', $data)
-            ->setPaper('a4', 'portrait');
+            ->setPaper('a4', 'portrait')
+            ->setOptions([
+                'tempDir' => public_path(),
+                'chroot'  => public_path(),
+                'isHtml5ParserEnabled' => true,
+                'isRemoteEnabled' => true, // Jaga-jaga jika nanti tambah logo
+            ]);
 
         return $pdf->stream($filename);
     }

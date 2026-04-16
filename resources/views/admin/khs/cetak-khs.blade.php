@@ -224,7 +224,7 @@
                 <div style="font-size: 9pt; margin-top: 10px;">
                     <strong>Keterangan:</strong><br>
                     SKS: Satuan Kredit Semester<br>
-                    IP Semester = &Sigma; (Indeks &times; SKS) / &Sigma; SKS
+                    IP Semester = Total (Indeks x SKS) / Total SKS
                 </div>
             </td>
             <td width="40%" align="right">
