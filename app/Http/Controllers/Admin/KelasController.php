@@ -129,9 +129,9 @@ class KelasController extends Controller
             ->with('success', 'Kelas berhasil ditambahkan.');
     }
 
-    public function edit(Kelas $kelas)
+    public function edit(Kelas $kelase)
     {
-        $kelas->load(['dosen.user', 'mataKuliah', 'semester']);
+        $kelase->load(['dosen.user', 'mataKuliah', 'semester']);
 
         $dosens = Dosen::query()->with('user')->orderByDesc('id')->get();
 
@@ -143,10 +143,10 @@ class KelasController extends Controller
 
         $semesters = Semester::query()->orderByDesc('id')->get();
 
-        return view('admin.kelases.edit', compact('kelas', 'dosens', 'mataKuliahs', 'semesters'));
+        return view('admin.kelases.edit', compact('kelase', 'dosens', 'mataKuliahs', 'semesters'));
     }
 
-    public function update(Request $request, Kelas $kelas)
+    public function update(Request $request, Kelas $kelase)
     {
         $validated = $request->validate([
             'dosen_id' => ['required', 'exists:dosens,id'],
@@ -160,7 +160,7 @@ class KelasController extends Controller
                 'required',
                 'string',
                 'max:50',
-                Rule::unique('kelases', 'kode_gabung')->ignore($kelas->id),
+                Rule::unique('kelases', 'kode_gabung')->ignore($kelase->id),
             ],
             'deskripsi' => ['nullable', 'string'],
             'persentase_tugas' => ['required', 'integer', 'min:0', 'max:100'],
@@ -179,16 +179,16 @@ class KelasController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($kelas, $validated) {
+            DB::transaction(function () use ($kelase, $validated) {
                 // 1. Simpan persentase lama untuk cek perubahan
                 $persentaseLama = [
-                    'tugas' => $kelas->persentase_tugas,
-                    'uts' => $kelas->persentase_uts,
-                    'uas' => $kelas->persentase_uas
+                    'tugas' => $kelase->persentase_tugas,
+                    'uts' => $kelase->persentase_uts,
+                    'uas' => $kelase->persentase_uas
                 ];
 
                 // 2. UPDATE kelas
-                $kelas->update($validated);
+                $kelase->update($validated);
 
                 // 🔥 3. CEK APAKAH PERSENTASE BERUBAH
                 $persentaseBaru = [
@@ -200,8 +200,8 @@ class KelasController extends Controller
                 $adaPerubahanPersentase = $persentaseLama !== $persentaseBaru;
 
                 if ($adaPerubahanPersentase) {
-                    Log::info("Persentase kelas {$kelas->nama_kelas} berubah, regenerate rekap nilai");
-                    $this->regenerateAllRekapNilaiKelas($kelas->id);
+                    Log::info("Persentase kelas {$kelase->nama_kelas} berubah, regenerate rekap nilai");
+                    $this->regenerateAllRekapNilaiKelas($kelase->id);
                 }
             });
 

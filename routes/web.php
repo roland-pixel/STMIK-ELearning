@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\InputNilaiManualController;
 use App\Http\Controllers\Admin\JurusanController;
 use App\Http\Controllers\Admin\KelasController as AdminKelasController;
 use App\Http\Controllers\Admin\KelolaKHSController;
+use App\Http\Controllers\Admin\KelolaTranskripController;
 use App\Http\Controllers\Admin\MahasiswaController;
 use App\Http\Controllers\Admin\MataKuliahController;
 use App\Http\Controllers\Admin\ProfileController as AdminProfileController;
@@ -26,6 +27,7 @@ use App\Http\Controllers\Mahasiswa\DashboardController as MahasiswaDashboardCont
 use App\Http\Controllers\Mahasiswa\ProfileController as MahasiswaProfileController;
 use App\Http\Controllers\Mahasiswa\KelasDetailController as MahasiswaKelasDetailController;
 use App\Http\Controllers\Mahasiswa\JoinKelasController;
+use App\Http\Controllers\Mahasiswa\MahasiswaKHSController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -90,6 +92,11 @@ Route::middleware(['auth', 'role:admin'])
             Route::get('/', [KelolaKHSController::class, 'index'])->name('index');
             Route::get('/preview', [KelolaKHSController::class, 'previewKHS'])->name('preview');
             Route::post('/cetak', [KelolaKHSController::class, 'cetakKHS'])->name('cetak');
+        });
+
+        Route::prefix('transkrip')->name('transkrip.')->group(function () {
+            Route::get('/', [KelolaTranskripController::class, 'index'])->name('index');
+            Route::get('/cetak/{mahasiswa}', [KelolaTranskripController::class, 'cetak'])->name('cetak');
         });
 
         Route::resource('bimbingans', BimbinganController::class)
@@ -181,6 +188,15 @@ Route::middleware(['auth', 'role:mahasiswa'])
 
         Route::get('dashboard', [MahasiswaDashboardController::class, 'index'])
             ->name('dashboard');
+
+        Route::prefix('khs')->name('khs.')->group(function () {
+            Route::get('/', [MahasiswaKHSController::class, 'index'])->name('index');
+            Route::get('/preview', [MahasiswaKHSController::class, 'previewKHS'])->name('preview');
+            Route::get('/cetak', [MahasiswaKHSController::class, 'cetakKHS'])->name('cetak');
+        });
+
+        Route::get('leaderboard', [\App\Http\Controllers\Mahasiswa\LeaderboardController::class, 'leaderboard'])
+            ->name('leaderboard');
 
         Route::post('kelas/join', [JoinKelasController::class, 'store'])
             ->name('kelas.join');

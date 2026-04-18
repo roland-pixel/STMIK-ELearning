@@ -36,7 +36,7 @@
                     </span>
                 </div>
 
-                <form method="POST" action="{{ route('admin.kelases.update', $kelas) }}" class="mt-6 space-y-6">
+                <form method="POST" action="{{ route('admin.kelases.update', $kelase) }}" class="mt-6 space-y-6">
                     @csrf
                     @method('PUT')
 
@@ -54,7 +54,7 @@
                                            focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition">
                                     @foreach ($dosens as $d)
                                         <option value="{{ $d->id }}"
-                                            {{ (string) old('dosen_id', $kelas->dosen_id) === (string) $d->id ? 'selected' : '' }}>
+                                            {{ (string) old('dosen_id', $kelase->dosen_id) === (string) $d->id ? 'selected' : '' }}>
                                             {{ $d->user?->nama_lengkap ?? '-' }} ({{ $d->nip }})
                                         </option>
                                     @endforeach
@@ -72,7 +72,7 @@
                                            focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition">
                                     @foreach ($mataKuliahs as $mk)
                                         <option value="{{ $mk->id }}"
-                                            {{ (string) old('mata_kuliah_id', $kelas->mata_kuliah_id) === (string) $mk->id ? 'selected' : '' }}>
+                                            {{ (string) old('mata_kuliah_id', $kelase->mata_kuliah_id) === (string) $mk->id ? 'selected' : '' }}>
                                             {{ $mk->kode_mk }} — {{ $mk->nama_mk }} ({{ $mk->sks }} SKS)
                                         </option>
                                     @endforeach
@@ -90,7 +90,7 @@
                                            focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition">
                                     @foreach ($semesters as $s)
                                         <option value="{{ $s->id }}"
-                                            {{ (string) old('semester_id', $kelas->semester_id) === (string) $s->id ? 'selected' : '' }}>
+                                            {{ (string) old('semester_id', $kelase->semester_id) === (string) $s->id ? 'selected' : '' }}>
                                             {{ $s->nama_semester }} ({{ $s->status_aktif }})
                                         </option>
                                     @endforeach
@@ -113,8 +113,8 @@
                             {{-- Nama Kelas --}}
                             <div>
                                 <label class="block text-sm font-medium text-ink-700">Nama Kelas</label>
-                                <input type="text" name="nama_kelas" value="{{ old('nama_kelas', $kelas->nama_kelas) }}"
-                                    required
+                                <input type="text" name="nama_kelas"
+                                    value="{{ old('nama_kelas', $kelase->nama_kelas) }}" required
                                     class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm
                                            focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition">
                                 @error('nama_kelas')
@@ -126,7 +126,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-ink-700">Kode Gabung</label>
                                 <input type="text" name="kode_gabung"
-                                    value="{{ old('kode_gabung', $kelas->kode_gabung) }}" required
+                                    value="{{ old('kode_gabung', $kelase->kode_gabung) }}" required
                                     class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm
                                            focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition">
                                 @error('kode_gabung')
@@ -140,7 +140,7 @@
                             <label class="block text-sm font-medium text-ink-700">Deskripsi (opsional)</label>
                             <textarea name="deskripsi" rows="3"
                                 class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm
-                                       focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition">{{ old('deskripsi', $kelas->deskripsi) }}</textarea>
+                                       focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition">{{ old('deskripsi', $kelase->deskripsi) }}</textarea>
                             @error('deskripsi')
                                 <p class="mt-1 text-sm text-rose-700">{{ $message }}</p>
                             @enderror
@@ -159,7 +159,7 @@
                                 <label class="block text-sm font-medium text-ink-700">Persentase Tugas</label>
                                 <div class="relative">
                                     <input type="number" name="persentase_tugas"
-                                        value="{{ old('persentase_tugas', $kelas->persentase_tugas) }}" min="0"
+                                        value="{{ old('persentase_tugas', $kelase->persentase_tugas) }}" min="0"
                                         max="100" required
                                         class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 pr-10 text-sm
                                                focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition">
@@ -175,7 +175,7 @@
                                 <label class="block text-sm font-medium text-ink-700">Persentase UTS</label>
                                 <div class="relative">
                                     <input type="number" name="persentase_uts"
-                                        value="{{ old('persentase_uts', $kelas->persentase_uts) }}" min="0"
+                                        value="{{ old('persentase_uts', $kelase->persentase_uts) }}" min="0"
                                         max="100" required
                                         class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 pr-10 text-sm
                                                focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition">
@@ -191,7 +191,7 @@
                                 <label class="block text-sm font-medium text-ink-700">Persentase UAS</label>
                                 <div class="relative">
                                     <input type="number" name="persentase_uas"
-                                        value="{{ old('persentase_uas', $kelas->persentase_uas) }}" min="0"
+                                        value="{{ old('persentase_uas', $kelase->persentase_uas) }}" min="0"
                                         max="100" required
                                         class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 pr-10 text-sm
                                                focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition">

@@ -1,36 +1,65 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\Mahasiswa;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Barryvdh\DomPDF\Facade\Pdf as PDF;
 use App\Models\Mahasiswa;
 use App\Models\Semester;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
 
-class KelolaKHSController extends Controller
+class MahasiswaKHSController extends Controller
 {
     public function index()
     {
-        $mahasiswas = Mahasiswa::with('user', 'jurusan')->get();
+        // PROTEKSI MANUAL
+        if (!Auth::check() || Auth::user()->peran !== 'mahasiswa') {
+            abort(403, 'Akses ditolak.');
+        }
 
-        $semesters = Semester::orderBy('nama_semester', 'desc')->get()->map(function ($semester) {
-            $semester->is_active_display = $semester->status_aktif === 'active';
-            $semester->status_display = $semester->is_active_display ? 'Aktif' : 'Arsip';
-            return $semester;
-        });
+        $mahasiswa = Auth::user()->mahasiswa;
 
-        return view('admin.khs.index', compact('mahasiswas', 'semesters'));
+        if (!$mahasiswa) {
+            return Inertia::render('Mahasiswa/KHS/Index', [
+                'error' => 'Data mahasiswa tidak ditemukan.'
+            ]);
+        }
+
+        $semesters = Semester::orderBy('nama_semester', 'desc')
+            ->get()
+            ->map(function ($semester) use ($mahasiswa) {
+                // Check KHS di kedua tabel (Umum & Spesial)
+                $hasUmum = DB::table('rekap_nilais')
+                    ->where('mahasiswa_id', $mahasiswa->id)
+                    ->where('semester_id', $semester->id)
+                    ->exists();
+
+                $hasSpesial = DB::table('bimbingans')
+                    ->where('mahasiswa_id', $mahasiswa->id)
+                    ->where('semester_id', $semester->id)
+                    ->where('status', 'approved')
+                    ->exists();
+
+                $semester->has_khs = $hasUmum || $hasSpesial;
+                $semester->status_display = $semester->status_aktif === 'active' ? 'Aktif' : 'Arsip';
+                return $semester;
+            });
+
+        return Inertia::render('Mahasiswa/KHS/Index', [
+            'mahasiswa' => $mahasiswa->load('user', 'jurusan'),
+            'semesters' => $semesters
+        ]);
     }
 
     /**
-     * Fungsi Helper untuk menggabungkan Matkul Umum dan Matkul Spesial
+     * Helper: Gabungkan Matkul Umum & Spesial (Logika sama dengan Admin)
      */
     private function getCombinedKHSData($mahasiswaId, $semesterId)
     {
-        // 1. Ambil data Matkul Umum dari rekap_nilais
         $umum = DB::table('rekap_nilais as r')
             ->join('mata_kuliahs as mk', 'r.mata_kuliah_id', '=', 'mk.id')
             ->where('r.mahasiswa_id', $mahasiswaId)
@@ -48,7 +77,6 @@ class KelolaKHSController extends Controller
                 'r.total_uas'
             );
 
-        // 2. Ambil data Matkul Spesial dari bimbingans
         $spesial = DB::table('bimbingans as b')
             ->join('mata_kuliahs as mk', 'b.mata_kuliah_id', '=', 'mk.id')
             ->where('b.mahasiswa_id', $mahasiswaId)
@@ -67,10 +95,8 @@ class KelolaKHSController extends Controller
                 DB::raw("0 as total_uas")
             );
 
-        // 3. Gabungkan dan mapping ulang nilai untuk Matkul Spesial
         return $umum->union($spesial)->orderBy('kode_mk')->get()->map(function ($item) {
             if ($item->jenis_mk === 'Spesial') {
-                // Sekarang keduanya menggunakan nilai_akhir_angka sebagai parameter
                 $item->nilai_huruf = $this->konversiHuruf($item->nilai_akhir_angka);
                 $item->nilai_indeks = $this->konversiIndeks($item->nilai_akhir_angka);
             }
@@ -78,9 +104,6 @@ class KelolaKHSController extends Controller
         });
     }
 
-    /**
-     * Konversi nilai angka ke huruf
-     */
     private function konversiHuruf($nilai)
     {
         if ($nilai >= 90) return 'A';
@@ -95,9 +118,6 @@ class KelolaKHSController extends Controller
         return 'E';
     }
 
-    /**
-     * Konversi nilai angka ke indeks
-     */
     private function konversiIndeks($nilai)
     {
         if ($nilai >= 90) return 4.0;
@@ -114,47 +134,52 @@ class KelolaKHSController extends Controller
 
     public function previewKHS(Request $request)
     {
-        $request->validate([
-            'mahasiswa_id' => 'required|exists:mahasiswas,id',
-            'semester_id' => 'required|exists:semesters,id',
-        ]);
+        if (!Auth::check() || Auth::user()->peran !== 'mahasiswa') abort(403);
 
-        $mahasiswa = Mahasiswa::with('user', 'jurusan')->findOrFail($request->mahasiswa_id);
+        $request->validate(['semester_id' => 'required|exists:semesters,id']);
+
+        $mahasiswa = Auth::user()->mahasiswa;
         $semester = Semester::findOrFail($request->semester_id);
 
-        $khsData = $this->getCombinedKHSData($request->mahasiswa_id, $request->semester_id);
+        $khsData = $this->getCombinedKHSData($mahasiswa->id, $request->semester_id);
+
+        if ($khsData->isEmpty()) {
+            return back()->with('warning', 'Belum ada data nilai untuk semester ini.');
+        }
 
         $totalMutu = $khsData->sum(fn($item) => ($item->nilai_indeks ?? 0) * ($item->sks ?? 0));
         $totalSKS = $khsData->sum('sks') ?? 0;
         $ipk = $totalSKS > 0 ? round($totalMutu / $totalSKS, 2) : 0;
 
-        return view('admin.khs.preview-khs', compact(
-            'mahasiswa',
-            'semester',
-            'khsData',
-            'ipk',
-            'totalSKS'
-        ));
+        return Inertia::render('Mahasiswa/KHS/Index', [
+            'mahasiswa' => $mahasiswa->load('user', 'jurusan'),
+            'semester' => $semester,
+            'khsData' => $khsData,
+            'ipk' => $ipk,
+            'totalSKS' => $totalSKS,
+            'isPreview' => true
+        ]);
     }
 
     public function cetakKHS(Request $request)
     {
-        $request->validate([
-            'mahasiswa_id' => 'required|exists:mahasiswas,id',
-            'semester_id' => 'required|exists:semesters,id',
-        ]);
+        if (!Auth::check() || Auth::user()->peran !== 'mahasiswa') abort(403);
 
-        $mahasiswa = Mahasiswa::with('user', 'jurusan')->findOrFail($request->mahasiswa_id);
+        $request->validate(['semester_id' => 'required|exists:semesters,id']);
+
+        $mahasiswa = Auth::user()->mahasiswa;
         $semester = Semester::findOrFail($request->semester_id);
 
-        $khsData = $this->getCombinedKHSData($request->mahasiswa_id, $request->semester_id);
+        $khsData = $this->getCombinedKHSData($mahasiswa->id, $request->semester_id);
+
+        if ($khsData->isEmpty()) abort(404, 'Data KHS tidak ditemukan.');
 
         $totalMutu = $khsData->sum(fn($item) => ($item->nilai_indeks ?? 0) * ($item->sks ?? 0));
         $totalSKS = $khsData->sum('sks') ?? 0;
         $ipk = $totalSKS > 0 ? round($totalMutu / $totalSKS, 2) : 0;
 
         $data = [
-            'mahasiswa' => $mahasiswa,
+            'mahasiswa' => $mahasiswa->load('user', 'jurusan'),
             'semester' => $semester,
             'khs_data' => $khsData,
             'ipk' => $ipk,
@@ -162,18 +187,11 @@ class KelolaKHSController extends Controller
             'tanggal_cetak' => now()->translatedFormat('d F Y')
         ];
 
-        $filename = "KHS-{$mahasiswa->nim}-" . Str::slug($semester->nama_semester) . "-" . now()->format('Ymd') . ".pdf";
+        $filename = "KHS-{$mahasiswa->nim}-" . Str::slug($semester->nama_semester) . ".pdf";
 
-        $pdf = PDF::loadView('admin.khs.cetak-khs', $data)
+        // Gunakan view yang sama agar desain konsisten dengan admin
+        return PDF::loadView('admin.khs.cetak-khs', $data)
             ->setPaper('a4', 'portrait')
-            ->setOptions([
-                'tempDir' => storage_path('app/public'),
-                'chroot' => base_path(),
-                'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled' => true,
-                'defaultFont' => 'sans-serif',
-            ]);
-
-        return $pdf->stream($filename);
+            ->stream($filename);
     }
 }

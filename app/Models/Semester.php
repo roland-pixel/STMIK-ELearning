@@ -26,15 +26,15 @@ class Semester extends Model
         return $this->hasMany(Bimbingan::class);
     }
 
-    protected $casts = [
-        'tanggal_mulai' => 'date:Y-m-d',
-        'tanggal_selesai' => 'date:Y-m-d',
-        'status_aktif' => 'boolean',
-    ];
+    // protected $casts = [
+    //     'tanggal_mulai' => 'date:Y-m-d',
+    //     'tanggal_selesai' => 'date:Y-m-d',
+    //     'status_aktif' => 'boolean',
+    // ];
 
-    // Bonus: Attribute helper
-    public function getPeriodeAttribute()
-    {
-        return $this->tanggal_mulai->format('d/m/Y') . ' - ' . $this->tanggal_selesai->format('d/m/Y');
-    }
+    // // Bonus: Attribute helper
+    // public function getPeriodeAttribute()
+    // {
+    //     return $this->tanggal_mulai->format('d/m/Y') . ' - ' . $this->tanggal_selesai->format('d/m/Y');
+    // }
 }
