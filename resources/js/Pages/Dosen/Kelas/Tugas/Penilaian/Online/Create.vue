@@ -594,11 +594,17 @@ const cancel = () => router.visit(route("dosen.kelas.show", props.kelas.uuid));
         <!-- Sticky bottom action bar (mobile + desktop) -->
         <div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur">
             <div class="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between gap-3">
-                <div class="text-sm text-gray-600">
-                    Total bobot:
-                    <span class="font-semibold text-gray-900">{{
-                        totalBobot
-                    }}</span>
+                <div class="flex items-center gap-3">
+                    <div class="text-sm text-gray-600">
+                        Total bobot:
+                        <span class="font-semibold text-gray-900">{{ totalBobot }}</span>
+                    </div>
+                    <!-- Tombol tambah pertanyaan dipindah ke sini -->
+                    <button type="button"
+                        class="rounded-xl border-2 bg-gray-900 border-dashed border-gray-300 px-4 py-2 text-sm font-semibold text-white hover:border-gray-400 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                        @click="addPertanyaan">
+                        Tambah Pertanyaan
+                    </button>
                 </div>
                 <div class="flex items-center gap-2">
                     <button type="button"

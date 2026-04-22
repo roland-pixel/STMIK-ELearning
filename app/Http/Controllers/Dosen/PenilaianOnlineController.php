@@ -37,16 +37,6 @@ class PenilaianOnlineController extends Controller
 
     public function index(Request $request, Kelas $kelas)
     {
-        // dd($request->all(),  Pengumpulan::find(31), Pengumpulan::where('id', 31)
-        //     ->with([
-        //         'mahasiswa.user',
-        //         'jawabanDetails',
-        //         'jawabanDetails.pertanyaan.opsiJawabans',
-        //     ])
-        //     ->first());
-        // $this->ensureOwner($kelas);
-
-
         // 1. Ambil Parameter Query
         $openId = $request->query('open') ? (int) $request->query('open') : null;
         $currentTab = $request->query('tab', 'pertanyaan');
@@ -184,6 +174,7 @@ class PenilaianOnlineController extends Controller
                         'id' => $jd->id,
                         'pertanyaan_id' => $jd->pertanyaan_id,
                         'text_jawaban' => $jd->text_jawaban,
+                        'file_jawaban' => $jd->file_jawaban,
                         'opsi_jawaban_id' => $jd->opsi_jawaban_id,
                         'nilai_per_soal' => $jd->nilai_per_soal,
                         'pertanyaan' => [

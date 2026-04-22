@@ -28,6 +28,7 @@ use App\Http\Controllers\Mahasiswa\ProfileController as MahasiswaProfileControll
 use App\Http\Controllers\Mahasiswa\KelasDetailController as MahasiswaKelasDetailController;
 use App\Http\Controllers\Mahasiswa\JoinKelasController;
 use App\Http\Controllers\Mahasiswa\MahasiswaKHSController;
+use App\Http\Controllers\Mahasiswa\PengerjaanPenilaianController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -213,11 +214,11 @@ Route::middleware(['auth', 'role:mahasiswa'])
             Route::get('materi', [MahasiswaMateriController::class, 'index'])
                 ->name('materi.index');
             Route::prefix('penilaian/online/{penilaian:uuid}')->name('penilaian.online.')->group(function () {
-                Route::get('/', [\App\Http\Controllers\Mahasiswa\PengerjaanPenilaianController::class, 'show'])
+                Route::get('/', [PengerjaanPenilaianController::class, 'show'])
                     ->name('show');
-                Route::post('/kerjakan', [\App\Http\Controllers\Mahasiswa\PengerjaanPenilaianController::class, 'kerjakan'])
+                Route::get('/kerjakan', [PengerjaanPenilaianController::class, 'kerjakan'])
                     ->name('kerjakan');
-                Route::post('/submit', [\App\Http\Controllers\Mahasiswa\PengerjaanPenilaianController::class, 'submit'])
+                Route::post('/submit', [PengerjaanPenilaianController::class, 'submit'])
                     ->name('submit');
             });
         });

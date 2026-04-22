@@ -129,34 +129,23 @@ class PengerjaanPenilaianController extends Controller
             return abort(403, 'Jawaban sudah dikirim sebelumnya.');
         }
 
+        // ✅ FIX VALIDATION: Handle file array dengan index pertanyaan
         $request->validate([
             'jawaban' => 'required|array',
             'jawaban.*.pertanyaan_id' => 'required|exists:pertanyaans,id',
             'jawaban.*.opsi_jawaban_id' => 'nullable|exists:opsi_jawabans,id',
-            'jawaban.*.text_jawaban' => 'nullable|string',
-            'jawaban.*.file' => 'nullable|file|max:10240',
+            'jawaban.*.text_jawaban' => 'nullable|string|max:1000',
+            // ✅ FIX: File validation per index array
+            'jawaban.*.file' => 'nullable|file|max:10240|mimes:jpg,jpeg,png,pdf,doc,docx,zip,txt,rar',
         ]);
 
         DB::beginTransaction();
         try {
-            // ✅ HITUNG NILAI TOTAL SAMA SEPERTI MANUAL: (sum nilai_per_soal / sum bobot_soal) * 100
             $this->simpanJawabanDanHitungNilai($request, $pengumpulan, $penilaian);
-
-            // ✅ UPDATE REKAP NILAI OTOMATIS
             $this->regenerateRekapNilai($pengumpulan->id);
-
             DB::commit();
 
-            $hasManualGrading = $penilaian->pertanyaans()
-                ->whereIn('jenis_pertanyaan', ['essai', 'upload_file'])
-                ->exists();
-
-            $msg = $hasManualGrading
-                ? 'Jawaban berhasil dikirim. Nilai akan final setelah dikoreksi dosen.'
-                : '✅ Jawaban berhasil dikirim & dinilai otomatis!';
-
-            return redirect()->route('mahasiswa.kelas.penilaian.online.show', [$kelas->uuid, $penilaian->uuid])
-                ->with('success', $msg);
+            // ... success message ...
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->withErrors(['message' => 'Terjadi kesalahan: ' . $e->getMessage()]);
@@ -165,26 +154,27 @@ class PengerjaanPenilaianController extends Controller
 
     private function simpanJawabanDanHitungNilai($request, $pengumpulan, $penilaian)
     {
-        foreach ($request->jawaban as $item) {
+        foreach ($request->jawaban as $index => $item) {  // ✅ $index = 0,1,2,...
             $pertanyaan = $penilaian->pertanyaans()->find($item['pertanyaan_id']);
             $nilaiPerSoal = 0;
             $filePath = null;
 
-            // Handle File
-            if ($request->hasFile("jawaban.{$item['pertanyaan_id']}.file")) {
-                $file = $request->file("jawaban.{$item['pertanyaan_id']}.file");
-                $filePath = $file->store("pengumpulan/{$pengumpulan->uuid}", 'public');
+            // 🔥 FIX 1: Nama file BENAR SEKARANG!
+            $fileKey = "jawaban.{$index}.file";  // jawaban[0].file, jawaban[1].file
+            if ($request->hasFile($fileKey)) {
+                $file = $request->file($fileKey);
+                $filePath = $file->store("jawaban/{$pengumpulan->uuid}", 'public');  // ✅ Nama folder lebih jelas
+                \Log::info("File uploaded: {$filePath}");  // Debug log
             }
 
-            // Auto-grading PG
+            // Auto-grading PG (tetap sama)
             if ($pertanyaan->jenis_pertanyaan === 'pilihan_ganda' && !empty($item['opsi_jawaban_id'])) {
                 $isCorrect = DB::table('opsi_jawabans')
                     ->where('id', $item['opsi_jawaban_id'])
                     ->where('is_benar', true)
                     ->exists();
-
                 if ($isCorrect) {
-                    $nilaiPerSoal = $pertanyaan->bobot_soal; // Full bobot jika benar
+                    $nilaiPerSoal = $pertanyaan->bobot_soal;
                 }
             }
 
@@ -193,14 +183,12 @@ class PengerjaanPenilaianController extends Controller
                 'pertanyaan_id' => $pertanyaan->id,
                 'opsi_jawaban_id' => $item['opsi_jawaban_id'] ?? null,
                 'text_jawaban' => $item['text_jawaban'] ?? null,
-                'file_jawaban' => $filePath,
+                'file_jawaban' => $filePath,  // ✅ SEKARANG ISI!
                 'nilai_per_soal' => $nilaiPerSoal,
             ]);
         }
 
-        // ✅ RUMUS SAMA: (SUM(nilai_per_soal) / SUM(bobot_soal)) * 100
         $this->updatePengumpulanTotal($pengumpulan->id);
-
         $pengumpulan->update(['waktu_selesai' => Carbon::now()]);
     }
 

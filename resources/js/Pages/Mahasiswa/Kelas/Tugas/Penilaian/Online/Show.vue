@@ -1,17 +1,13 @@
 <script setup>
 import AppLayout from '@/Layouts/Mahasiswa/AppLayout.vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';  // ✅ Hapus useForm!
 
 const props = defineProps({
     kelas: Object,
     penilaian: Object
 });
 
-const form = useForm({});
-
-const mulaiMengerjakan = () => {
-    form.post(route('mahasiswa.kelas.penilaian.online.kerjakan', [props.kelas.uuid, props.penilaian.uuid]));
-};
+// ✅ HAPUS: form & mulaiMengerjakan() - Pakai Link aja!
 </script>
 
 <template>
@@ -47,13 +43,16 @@ const mulaiMengerjakan = () => {
 
                 <div class="flex justify-end">
                     <Link :href="route('mahasiswa.kelas.show', kelas.uuid)"
-                        class="mr-4 px-4 py-2 text-gray-600 font-medium">
+                        class="mr-4 px-4 py-2 text-gray-600 font-medium hover:text-gray-900">
                         Kembali
                     </Link>
-                    <button v-if="!penilaian.is_selesai" @click="mulaiMengerjakan"
-                        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-bold transition">
+
+                    <!-- 🔥 FIX: Pakai Link, BUKAN form.post()! -->
+                    <Link v-if="!penilaian.is_selesai"
+                        :href="route('mahasiswa.kelas.penilaian.online.kerjakan', [kelas.uuid, penilaian.uuid])"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-bold transition-all duration-200 hover:shadow-md">
                         Mulai Mengerjakan
-                    </button>
+                    </Link>
                 </div>
             </div>
         </div>
