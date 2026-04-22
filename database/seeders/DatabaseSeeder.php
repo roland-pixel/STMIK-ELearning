@@ -22,6 +22,9 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        $this->call([
+            MataKuliahSeeder::class,
+        ]);
         User::create([
             'uuid' => Str::uuid(),
             'nama_lengkap' => 'Evelyn Chevalier',
