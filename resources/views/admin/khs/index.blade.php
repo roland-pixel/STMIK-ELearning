@@ -1,6 +1,6 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Kelola KHS - Maroon Clean Style')
+@section('title', 'Kelola KHS')
 @section('page_title', 'Kelola KHS')
 @section('page_desc', 'Kelola dan cetak Kartu Hasil Studi mahasiswa dengan nuansa identitas kampus')
 
@@ -55,54 +55,46 @@
             <form method="GET" action="{{ route('admin.khs.preview') }}"
                 class="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
 
+                {{-- STEP 1: Jurusan --}}
                 <div class="md:col-span-3">
                     <label class="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2 ml-1">
-                        Jurusan
+                        1. Pilih Jurusan
                     </label>
-                    <select name="jurusan_id" id="jurusan_id" class="select2-khs w-full" data-placeholder="Semua Jurusan">
+                    <select name="jurusan_id" id="jurusan_id" class="select2-khs w-full"
+                        data-placeholder="-- Pilih Jurusan --">
                         <option value=""></option>
-                        @foreach ($mahasiswas->pluck('jurusan')->filter()->unique('id')->values() as $jurusan)
+                        @foreach ($jurusans as $jurusan)
                             <option value="{{ $jurusan->id }}">{{ $jurusan->nama_jurusan }}</option>
                         @endforeach
                     </select>
                 </div>
 
+                {{-- STEP 2: Mahasiswa (disabled sampai jurusan dipilih) --}}
                 <div class="md:col-span-4">
                     <label class="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2 ml-1">
-                        Pilih Mahasiswa
+                        2. Pilih Mahasiswa
                     </label>
                     <select name="mahasiswa_id" id="mahasiswa_id" class="select2-khs w-full"
-                        data-placeholder="-- Pilih Mahasiswa --" required>
+                        data-placeholder="-- Pilih Jurusan dulu --" required disabled>
                         <option value=""></option>
-                        @foreach ($mahasiswas as $mahasiswa)
-                            <option value="{{ $mahasiswa->id }}">
-                                {{ $mahasiswa->nim }} - {{ $mahasiswa->user->nama_lengkap }}
-                                @if ($mahasiswa->jurusan)
-                                    ({{ $mahasiswa->jurusan->nama_jurusan }})
-                                @endif
-                            </option>
-                        @endforeach
                     </select>
                 </div>
 
+                {{-- STEP 3: Semester (disabled sampai mahasiswa dipilih) --}}
                 <div class="md:col-span-3">
                     <label class="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2 ml-1">
-                        Pilih Semester
+                        3. Pilih Semester
                     </label>
                     <select name="semester_id" id="semester_id" class="select2-khs w-full"
-                        data-placeholder="-- Pilih Semester --" required>
+                        data-placeholder="-- Pilih Mahasiswa dulu --" required disabled>
                         <option value=""></option>
-                        @foreach ($semesters as $semester)
-                            <option value="{{ $semester->id }}">
-                                {{ $semester->nama_semester }} ({{ $semester->status_display }})
-                            </option>
-                        @endforeach
                     </select>
                 </div>
 
                 <div class="md:col-span-2">
-                    <button type="submit"
-                        class="w-full bg-maroon-600 hover:bg-maroon-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-maroon-200 transition-all duration-300 transform hover:-translate-y-0.5 flex items-center justify-center space-x-2 group">
+                    <button type="submit" id="btn-preview"
+                        class="w-full bg-maroon-600 hover:bg-maroon-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-maroon-200 transition-all duration-300 transform hover:-translate-y-0.5 flex items-center justify-center space-x-2 group"
+                        disabled>
                         <svg class="w-5 h-5 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor"
                             viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -116,6 +108,7 @@
             </form>
         </div>
 
+        {{-- Stats Cards --}}
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div
                 class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-5 hover:border-maroon-200 transition-colors">
@@ -174,11 +167,70 @@
         $(function() {
             $('.select2-khs').select2({
                 width: '100%',
+                allowClear: true,
                 placeholder: function() {
                     return $(this).data('placeholder');
-                },
-                allowClear: true
+                }
             });
+
+            // STEP 1 → 2: Jurusan dipilih, load mahasiswa
+            $('#jurusan_id').on('change', function() {
+                const jurusanId = $(this).val();
+                resetSelect('#mahasiswa_id', '-- Pilih Jurusan dulu --', true);
+                resetSelect('#semester_id', '-- Pilih Mahasiswa dulu --', true);
+                $('#btn-preview').prop('disabled', true);
+                if (!jurusanId) return;
+
+                $.get('{{ route('admin.khs.mahasiswa-by-jurusan') }}', {
+                        jurusan_id: jurusanId
+                    })
+                    .done(function(data) {
+                        const $select = $('#mahasiswa_id');
+                        $select.empty().append('<option value=""></option>');
+                        data.forEach(m => $select.append(new Option(m.label, m.id)));
+                        $select.prop('disabled', false)
+                            .data('placeholder', '-- Pilih Mahasiswa --')
+                            .trigger('change.select2');
+                    })
+                    .fail(() => alert('Gagal memuat data mahasiswa.'));
+            });
+
+            // STEP 2 → 3: Mahasiswa dipilih, load semester
+            $('#mahasiswa_id').on('change', function() {
+                const mahasiswaId = $(this).val();
+                resetSelect('#semester_id', '-- Pilih Mahasiswa dulu --', true);
+                $('#btn-preview').prop('disabled', true);
+                if (!mahasiswaId) return;
+
+                $.get('{{ route('admin.khs.semester-by-mahasiswa') }}', {
+                        mahasiswa_id: mahasiswaId
+                    })
+                    .done(function(data) {
+                        const $select = $('#semester_id');
+                        $select.empty().append('<option value=""></option>');
+                        if (data.length === 0) {
+                            $select.data('placeholder', 'Tidak ada data KHS').trigger('change.select2');
+                            return;
+                        }
+                        data.forEach(s => $select.append(new Option(s.label, s.id)));
+                        $select.prop('disabled', false)
+                            .data('placeholder', '-- Pilih Semester --')
+                            .trigger('change.select2');
+                    })
+                    .fail(() => alert('Gagal memuat data semester.'));
+            });
+
+            // STEP 3: Semester dipilih → aktifkan tombol
+            $('#semester_id').on('change', function() {
+                $('#btn-preview').prop('disabled', !$(this).val());
+            });
+
+            function resetSelect(selector, placeholder, disabled) {
+                $(selector).empty().append('<option value=""></option>')
+                    .prop('disabled', disabled)
+                    .data('placeholder', placeholder)
+                    .trigger('change.select2');
+            }
         });
     </script>
 @endpush

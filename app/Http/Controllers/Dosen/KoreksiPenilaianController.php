@@ -28,17 +28,17 @@ class KoreksiPenilaianController extends Controller
 
         try {
             DB::transaction(function () use ($pengumpulanId, $jawabanData) {
-                // 1. UPDATE jawaban_details.nilai_per_soal
+                // 1. UPDATE jawaban_details
                 foreach ($jawabanData as $jawaban) {
                     JawabanDetail::where('id', $jawaban['id'])
                         ->where('pengumpulan_id', $pengumpulanId)
                         ->update(['nilai_per_soal' => $jawaban['nilai_per_soal']]);
                 }
 
-                // 2. HITUNG ULANG pengumpulans.nilai_total
+                // 2. HITUNG ULANG total nilai pengumpulan ini
                 $this->updatePengumpulanTotal($pengumpulanId);
 
-                // 3. REGENERATE rekap_nilais
+                // 3. REGENERATE rekap_nilais dengan logika perbandingan
                 $this->regenerateRekapNilai($pengumpulanId);
             });
 
@@ -49,13 +49,8 @@ class KoreksiPenilaianController extends Controller
         }
     }
 
-    /**
-     * Hitung ulang nilai_total pengumpulan dari jawaban_details
-     */
     private function updatePengumpulanTotal($pengumpulanId)
     {
-        $pengumpulan = Pengumpulan::find($pengumpulanId);
-
         $data = JawabanDetail::select('jawaban_details.nilai_per_soal', 'pertanyaans.bobot_soal')
             ->join('pertanyaans', 'jawaban_details.pertanyaan_id', '=', 'pertanyaans.id')
             ->where('jawaban_details.pengumpulan_id', $pengumpulanId)
@@ -78,42 +73,30 @@ class KoreksiPenilaianController extends Controller
         ]);
     }
 
-    /**
-     * Regenerate rekap_nilais untuk mahasiswa di kelas
-     * (SUDAH RATA‑RATA BERDASARKAN JUMLAH TUGAS DI KELAS)
-     */
     private function regenerateRekapNilai($pengumpulanId)
     {
         $pengumpulan = Pengumpulan::with(['penilaian.kelas', 'mahasiswa'])->find($pengumpulanId);
-        $mahasiswaId = $pengumpulan->mahasiswa_id;
-        $kelasId = $pengumpulan->penilaian->kelas_id;
-        $kelas = Kelas::find($kelasId);
+        if (!$pengumpulan) return;
 
-        // 1. Semua pengumpulan mahasiswa di kelas ini
+        $mahasiswaId = $pengumpulan->mahasiswa_id;
+        $kelas = $pengumpulan->penilaian->kelas;
+        $kelasId = $kelas->id;
+
+        // 1. Ambil semua pengumpulan mahasiswa di KELAS INI
         $semuaPengumpulan = Pengumpulan::whereHas('penilaian', fn($q) => $q->where('kelas_id', $kelasId))
             ->where('mahasiswa_id', $mahasiswaId)
+            ->with('penilaian')
             ->get()
             ->groupBy('penilaian.kategori');
 
-        // 2. Hitung total tugas di kelas (semua tugas, bukan yang sudah dikoreksi)
-        $totalTugasDiKelas = Penilaian::where('kelas_id', $kelasId)
-            ->where('kategori', 'tugas')
-            ->count();
+        // 2. Hitung rata-rata
+        $totalTugasDiKelas = Penilaian::where('kelas_id', $kelasId)->where('kategori', 'tugas')->count();
+        $sumNilaiTugas = $semuaPengumpulan->get('tugas', collect())->sum('nilai_total');
+        $totalTugas = $totalTugasDiKelas > 0 ? round($sumNilaiTugas / $totalTugasDiKelas, 2) : 0;
 
-        // 3. Hitung total nilai tugas yang sudah ada
-        $pengumpulanTugas = $semuaPengumpulan->get('tugas', collect());
-        $sumNilaiTugas = $pengumpulanTugas->sum('nilai_total'); // misal 100
-
-        // 4. total_tugas = (nilai tugas) / total jumlah tugas kelas
-        $totalTugas = $totalTugasDiKelas > 0
-            ? $sumNilaiTugas / $totalTugasDiKelas   // 100 / 3 → 33.33
-            : 0;
-
-        // 5. UTS & UAS tetap 1 item (0 kalau tidak ada)
         $totalUts = $this->hitungRataRataKategori($semuaPengumpulan, 'uts');
         $totalUas = $this->hitungRataRataKategori($semuaPengumpulan, 'uas');
 
-        // 6. Hitung nilai akhir
         $nilaiAkhir = round(
             ($totalTugas * $kelas->persentase_tugas / 100) +
                 ($totalUts * $kelas->persentase_uts / 100) +
@@ -121,65 +104,61 @@ class KoreksiPenilaianController extends Controller
             2
         );
 
+        $payload = [
+            'semester_id'       => $kelas->semester_id,
+            'mata_kuliah_id'    => $kelas->mata_kuliah_id,
+            'total_tugas'       => $totalTugas,
+            'total_uts'         => $totalUts,
+            'total_uas'         => $totalUas,
+            'nilai_akhir_angka' => $nilaiAkhir,
+            'nilai_huruf'       => $this->konversiHuruf($nilaiAkhir),
+            'nilai_indeks'      => $this->konversiIndeks($nilaiAkhir),
+        ];
+
+        // 3. 🔥 SIMPAN/UPDATE UNIK PER KELAS
+        // Menggunakan updateOrCreate dengan mahasiswa_id & kelas_id sebagai filter.
+        // Jika admin mengoreksi nilai di kelas yang sama, nilai terupdate.
+        // Jika mahasiswa mengulang di kelas lain, nilai tersimpan di record baru.
         RekapNilai::updateOrCreate(
             [
                 'mahasiswa_id' => $mahasiswaId,
-                'kelas_id' => $kelasId
+                'kelas_id'     => $kelasId
             ],
-            [
-                'semester_id' => $kelas->semester_id,
-                'mata_kuliah_id' => $kelas->mata_kuliah_id,
-                'total_tugas' => $totalTugas,
-                'total_uts' => $totalUts,
-                'total_uas' => $totalUas,
-                'nilai_akhir_angka' => $nilaiAkhir,
-                'nilai_huruf' => $this->konversiHuruf($nilaiAkhir),
-                'nilai_indeks' => $this->konversiIndeks($nilaiAkhir),
-            ]
+            $payload
         );
     }
 
-    /**
-     * Hitung nilai kategori: TUGAS=rata-rata, UTS/UAS=langsung nilai (1 item)
-     */
     private function hitungRataRataKategori($semuaPengumpulan, $kategori)
     {
         $pengumpulanKategori = $semuaPengumpulan->get($kategori, collect());
-
-        if ($pengumpulanKategori->isEmpty()) {
-            return 0;
-        }
-
-        // TUGAS: rata-rata nilai_total (multiple)
-        // UTS/UAS: langsung nilai_total (1 item)
-        return round($pengumpulanKategori->avg('nilai_total'), 2);
+        return $pengumpulanKategori->isEmpty() ? 0 : round($pengumpulanKategori->avg('nilai_total'), 2);
     }
 
     private function konversiHuruf($nilai)
     {
-        if ($nilai >= 90 && $nilai <= 100) return 'A';
-        if ($nilai >= 86 && $nilai <= 89) return 'A-';
-        if ($nilai >= 80 && $nilai <= 85) return 'B+';
-        if ($nilai >= 76 && $nilai <= 79) return 'B';
-        if ($nilai >= 70 && $nilai <= 75) return 'B-';
-        if ($nilai >= 66 && $nilai <= 69) return 'C+';
-        if ($nilai >= 60 && $nilai <= 65) return 'C';
-        if ($nilai >= 56 && $nilai <= 59) return 'C-';
-        if ($nilai >= 40 && $nilai <= 55) return 'D';
+        if ($nilai >= 90) return 'A';
+        if ($nilai >= 86) return 'A-';
+        if ($nilai >= 80) return 'B+';
+        if ($nilai >= 76) return 'B';
+        if ($nilai >= 70) return 'B-';
+        if ($nilai >= 66) return 'C+';
+        if ($nilai >= 60) return 'C';
+        if ($nilai >= 55) return 'C-';
+        if ($nilai >= 40) return 'D';
         return 'E';
     }
 
     private function konversiIndeks($nilai)
     {
-        if ($nilai >= 90 && $nilai <= 100) return 4.0;
-        if ($nilai >= 86 && $nilai <= 89) return 3.5;
-        if ($nilai >= 80 && $nilai <= 85) return 3.25;
-        if ($nilai >= 76 && $nilai <= 79) return 3.0;
-        if ($nilai >= 70 && $nilai <= 75) return 2.75;
-        if ($nilai >= 66 && $nilai <= 69) return 2.5;
-        if ($nilai >= 60 && $nilai <= 65) return 2.0;
-        if ($nilai >= 56 && $nilai <= 59) return 1.5;
-        if ($nilai >= 40 && $nilai <= 55) return 1.0;
+        if ($nilai >= 90) return 4.0;
+        if ($nilai >= 86) return 3.5;
+        if ($nilai >= 80) return 3.25;
+        if ($nilai >= 76) return 3.0;
+        if ($nilai >= 70) return 2.75;
+        if ($nilai >= 66) return 2.5;
+        if ($nilai >= 60) return 2.0;
+        if ($nilai >= 55) return 1.5;
+        if ($nilai >= 40) return 1.0;
         return 0.0;
     }
 }

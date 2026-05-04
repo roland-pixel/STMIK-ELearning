@@ -83,34 +83,32 @@ class KelasController extends Controller
 
     /**
      * Regenerate rekap_nilai untuk 1 mahasiswa di kelas
+     * (Logika baru: Simpan unik per kelas agar riwayat setiap semester aman)
      */
     private function regenerateRekapNilaiForMahasiswa($kelasId, $mahasiswaId)
     {
         $kelas = Kelas::find($kelasId);
         if (!$kelas) return;
 
-        // 1. Semua pengumpulan mahasiswa di kelas ini
+        // 1. Hitung ulang semua komponen nilai di KELAS INI
         $semuaPengumpulan = Pengumpulan::whereHas('penilaian', fn($q) => $q->where('kelas_id', $kelasId))
             ->where('mahasiswa_id', $mahasiswaId)
             ->with('penilaian')
             ->get()
             ->groupBy('penilaian.kategori');
 
-        // 2. Total tugas di kelas (semua tugas)
         $totalTugasDiKelas = Penilaian::where('kelas_id', $kelasId)
             ->where('kategori', 'tugas')
             ->count();
 
-        // 3. Rata-rata tugas mahasiswa
         $pengumpulanTugas = $semuaPengumpulan->get('tugas', collect());
         $sumNilaiTugas = $pengumpulanTugas->sum('nilai_total');
         $totalTugas = $totalTugasDiKelas > 0 ? round($sumNilaiTugas / $totalTugasDiKelas, 2) : 0;
 
-        // 4. UTS & UAS (langsung nilai jika ada)
         $totalUts = $this->hitungRataRataKategori($semuaPengumpulan, 'uts');
         $totalUas = $this->hitungRataRataKategori($semuaPengumpulan, 'uas');
 
-        // 5. Hitung nilai akhir dengan persentase BARU
+        // 2. Hitung Nilai Akhir dengan bobot terbaru
         $nilaiAkhir = round(
             ($totalTugas * $kelas->persentase_tugas / 100) +
                 ($totalUts * $kelas->persentase_uts / 100) +
@@ -118,21 +116,25 @@ class KelasController extends Controller
             2
         );
 
-        // 6. Update rekap_nilai
+        // 3. 🔥 SIMPAN/UPDATE UNIK PER KELAS
+        // Tidak perlu lagi membandingkan dengan nilai kelas lain.
+        // Dengan updateOrCreate berdasarkan mahasiswa_id dan kelas_id, 
+        // nilai kelas ini akan selalu terupdate dengan bobot baru, 
+        // tanpa menyentuh nilai di kelas/semester lain.
         RekapNilai::updateOrCreate(
             [
                 'mahasiswa_id' => $mahasiswaId,
-                'kelas_id' => $kelasId
+                'kelas_id'     => $kelasId
             ],
             [
-                'semester_id' => $kelas->semester_id,
-                'mata_kuliah_id' => $kelas->mata_kuliah_id,
-                'total_tugas' => $totalTugas,
-                'total_uts' => $totalUts,
-                'total_uas' => $totalUas,
+                'semester_id'       => $kelas->semester_id,
+                'mata_kuliah_id'    => $kelas->mata_kuliah_id,
+                'total_tugas'       => $totalTugas,
+                'total_uts'         => $totalUts,
+                'total_uas'         => $totalUas,
                 'nilai_akhir_angka' => $nilaiAkhir,
-                'nilai_huruf' => $this->konversiHuruf($nilaiAkhir),
-                'nilai_indeks' => $this->konversiIndeks($nilaiAkhir),
+                'nilai_huruf'       => $this->konversiHuruf($nilaiAkhir),
+                'nilai_indeks'      => $this->konversiIndeks($nilaiAkhir),
             ]
         );
     }

@@ -9,7 +9,7 @@ class Pengumpulan extends Model
 {
     protected $table = 'pengumpulans';
     use HasFactory;
-    
+
     protected $casts = [
         'waktu_mulai'   => 'datetime',
         'waktu_selesai' => 'datetime',

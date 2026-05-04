@@ -12,8 +12,54 @@ use Illuminate\Support\Str;
 
 class KelolaKHSController extends Controller
 {
+    // Tambahkan method ini ke dalam class KelolaKHSController
+
+    public function getMahasiswaByJurusan(Request $request)
+    {
+        $request->validate(['jurusan_id' => 'required|exists:jurusans,id']);
+
+        $mahasiswas = Mahasiswa::with('user')
+            ->where('jurusan_id', $request->jurusan_id)
+            ->get()
+            ->map(fn($m) => [
+                'id'    => $m->id,
+                'label' => $m->nim . ' - ' . $m->user->nama_lengkap,
+            ]);
+
+        return response()->json($mahasiswas);
+    }
+
+    public function getSemesterByMahasiswa(Request $request)
+    {
+        $request->validate(['mahasiswa_id' => 'required|exists:mahasiswas,id']);
+
+        $semesterIdsFromRekap = DB::table('rekap_nilais')
+            ->where('mahasiswa_id', $request->mahasiswa_id)
+            ->pluck('semester_id');
+
+        $semesterIdsFromBimbingan = DB::table('bimbingans')
+            ->where('mahasiswa_id', $request->mahasiswa_id)
+            ->where('status', 'approved')
+            ->pluck('semester_id');
+
+        $semesterIds = $semesterIdsFromRekap->merge($semesterIdsFromBimbingan)->unique();
+
+        $semesters = Semester::whereIn('id', $semesterIds)
+            ->orderBy('nama_semester', 'desc')
+            ->get()
+            ->map(fn($s) => [
+                'id'    => $s->id,
+                'label' => $s->nama_semester . ' (' . ($s->status_aktif === 'active' ? 'Aktif' : 'Arsip') . ')',
+            ]);
+
+        return response()->json($semesters);
+    }
+
     public function index()
     {
+        // Hanya jurusan yang punya mahasiswa
+        $jurusans = \App\Models\Jurusan::whereHas('mahasiswas')->orderBy('nama_jurusan')->get();
+
         $mahasiswas = Mahasiswa::with('user', 'jurusan')->get();
 
         $semesters = Semester::orderBy('nama_semester', 'desc')->get()->map(function ($semester) {
@@ -22,65 +68,77 @@ class KelolaKHSController extends Controller
             return $semester;
         });
 
-        return view('admin.khs.index', compact('mahasiswas', 'semesters'));
+        return view('admin.khs.index', compact('mahasiswas', 'semesters', 'jurusans'));
     }
 
     /**
      * Fungsi Helper untuk menggabungkan Matkul Umum dan Matkul Spesial
+     * Menggunakan leftJoin agar data tetap muncul meski kurikulum belum diset.
      */
     private function getCombinedKHSData($mahasiswaId, $semesterId)
     {
-        // 1. Ambil data Matkul Umum dari rekap_nilais
+        $mahasiswa = Mahasiswa::find($mahasiswaId);
+        $jurusanId = $mahasiswa->jurusan_id;
+
+        // 1. Matkul Umum
         $umum = DB::table('rekap_nilais as r')
             ->join('mata_kuliahs as mk', 'r.mata_kuliah_id', '=', 'mk.id')
+            ->leftJoin('kurikulums as k', function ($join) use ($jurusanId) {
+                $join->on('mk.id', '=', 'k.mata_kuliah_id')
+                    ->where('k.jurusan_id', '=', $jurusanId);
+            })
             ->where('r.mahasiswa_id', $mahasiswaId)
             ->where('r.semester_id', $semesterId)
             ->select(
-                'mk.kode_mk',
+                DB::raw('COALESCE(k.kode_mk_jurusan, "N/A") as kode_tampil'),
                 'mk.nama_mk',
                 'mk.sks',
                 'mk.jenis_mk',
-                'r.nilai_akhir_angka',
-                'r.nilai_huruf',
-                'r.nilai_indeks',
                 'r.total_tugas',
                 'r.total_uts',
-                'r.total_uas'
+                'r.total_uas',
+                'r.nilai_akhir_angka',
+                'r.nilai_huruf',
+                'r.nilai_indeks'
             );
 
-        // 2. Ambil data Matkul Spesial dari bimbingans
+        // 2. Matkul Spesial
         $spesial = DB::table('bimbingans as b')
             ->join('mata_kuliahs as mk', 'b.mata_kuliah_id', '=', 'mk.id')
-            ->where('b.mahasiswa_id', $mahasiswaId)
-            ->where('b.semester_id', $semesterId)
-            ->where('b.status', 'approved')
-            ->select(
-                'mk.kode_mk',
+            ->leftJoin('kurikulums as k', function ($join) use ($jurusanId) {
+                $join->on('mk.id', '=', 'k.mata_kuliah_id')
+                    ->where('k.jurusan_id', $jurusanId);
+            })
+            ->select([
+                DB::raw('COALESCE(k.kode_mk_jurusan, "N/A") as kode_tampil'),
                 'mk.nama_mk',
                 'mk.sks',
                 'mk.jenis_mk',
+                DB::raw('NULL as total_tugas'),
+                DB::raw('NULL as total_uts'),
+                DB::raw('NULL as total_uas'),
                 'b.nilai_angka as nilai_akhir_angka',
-                DB::raw("NULL as nilai_huruf"),
-                DB::raw("NULL as nilai_indeks"),
-                DB::raw("0 as total_tugas"),
-                DB::raw("0 as total_uts"),
-                DB::raw("0 as total_uas")
-            );
+                DB::raw('NULL as nilai_huruf'),
+                DB::raw('NULL as nilai_indeks'),
+            ])
+            ->where('b.mahasiswa_id', $mahasiswaId)
+            ->where('b.semester_id', $semesterId)
+            ->where('b.status', 'approved');
 
-        // 3. Gabungkan dan mapping ulang nilai untuk Matkul Spesial
-        return $umum->union($spesial)->orderBy('kode_mk')->get()->map(function ($item) {
-            if ($item->jenis_mk === 'Spesial') {
-                // Sekarang keduanya menggunakan nilai_akhir_angka sebagai parameter
-                $item->nilai_huruf = $this->konversiHuruf($item->nilai_akhir_angka);
-                $item->nilai_indeks = $this->konversiIndeks($item->nilai_akhir_angka);
-            }
-            return $item;
-        });
+        // 3. Gabungkan dan urutkan
+        return $umum->union($spesial)
+            ->orderBy('nama_mk', 'asc')
+            ->get()
+            ->map(function ($item) {
+                // Untuk matkul spesial, kita hitung huruf dan indeksnya di sini
+                if ($item->jenis_mk === 'Spesial') {
+                    $item->nilai_huruf = $this->konversiHuruf($item->nilai_akhir_angka);
+                    $item->nilai_indeks = $this->konversiIndeks($item->nilai_akhir_angka);
+                }
+                return $item;
+            });
     }
 
-    /**
-     * Konversi nilai angka ke huruf
-     */
     private function konversiHuruf($nilai)
     {
         if ($nilai >= 90) return 'A';
@@ -95,9 +153,6 @@ class KelolaKHSController extends Controller
         return 'E';
     }
 
-    /**
-     * Konversi nilai angka ke indeks
-     */
     private function konversiIndeks($nilai)
     {
         if ($nilai >= 90) return 4.0;

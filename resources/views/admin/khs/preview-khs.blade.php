@@ -160,7 +160,8 @@
                                 <tr class="hover:bg-maroon-50/50 transition-colors">
                                     <td class="px-4 py-4 text-center text-sm font-bold text-slate-400">{{ $index + 1 }}
                                     </td>
-                                    <td class="px-4 py-4 text-sm font-black text-maroon-600 uppercase">{{ $item->kode_mk }}
+                                    <td class="px-4 py-4 text-sm font-black text-maroon-600 uppercase">
+                                        {{ $item->kode_tampil }}
                                     </td>
                                     <td class="px-4 py-4">
                                         <div class="flex flex-col">

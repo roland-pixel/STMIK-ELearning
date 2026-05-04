@@ -191,7 +191,7 @@
                 <tr>
                     {{-- Kolom Kiri --}}
                     <td>{{ $index + 1 }}</td>
-                    <td>{{ $left->kode_mk }}</td>
+                    <td>{{ $left->kode_tampil }}</td>
                     <td class="text-left">{{ strtoupper($left->nama_mk) }}</td>
                     <td>{{ $left->sks }}</td>
                     <td>{{ $left->huruf }}</td>
@@ -199,7 +199,7 @@
                     {{-- Kolom Kanan --}}
                     @if ($right)
                         <td>{{ $leftColumn->count() + $index + 1 }}</td>
-                        <td>{{ $right->kode_mk }}</td>
+                        <td>{{ $right->kode_tampil }}</td>
                         <td class="text-left">{{ strtoupper($right->nama_mk) }}</td>
                         <td>{{ $right->sks }}</td>
                         <td>{{ $right->huruf }}</td>

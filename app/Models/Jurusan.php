@@ -19,4 +19,15 @@ class Jurusan extends Model
     {
         return $this->hasMany(Mahasiswa::class);
     }
+
+    public function kurikulums()
+    {
+        return $this->hasMany(Kurikulum::class);
+    }
+
+    public function mataKuliahs()
+    {
+        return $this->belongsToMany(MataKuliah::class, 'kurikulums', 'jurusan_id', 'mata_kuliah_id')
+            ->withPivot('kode_mk_jurusan');
+    }
 }

@@ -52,13 +52,31 @@ class KelasDetailController extends Controller
 
         $mahasiswaId = $this->ensureMember($request, $kelas);
 
+        // Cari anggota_kelas record milik mahasiswa ini
+        $anggotaKelasRecord = DB::table('anggota_kelases')
+            ->where('kelas_id', $kelas->id)
+            ->where('mahasiswa_id', $mahasiswaId)
+            ->first();
+
+        $hasGrades = DB::table('rekap_nilais')
+            ->where('mahasiswa_id', $mahasiswaId)
+            ->where('kelas_id', $kelas->id)
+            ->exists();
+
+        $hasSubmissions = DB::table('pengumpulans')
+            ->where('mahasiswa_id', $mahasiswaId)
+            ->whereIn('penilaian_id', function ($q) use ($kelas) {
+                $q->select('id')->from('penilaians')->where('kelas_id', $kelas->id);
+            })
+            ->exists();
+
         $theme = $this->themeFor($kelas->uuid ?? (string) $kelas->id);
 
         $totalAnggota = $kelas->anggotaKelases()->count();
 
         $kelas->load([
             'dosen.user:id,nama_lengkap,email,avatar',
-            'mataKuliah:id,kode_mk,nama_mk,sks,jenis_mk',
+            'mataKuliah:id,nama_mk,sks,jenis_mk',
             'semester:id,nama_semester,status_aktif,tanggal_mulai,tanggal_selesai',
         ]);
 
@@ -199,7 +217,6 @@ class KelasDetailController extends Controller
                     'avatar' => $kelas->dosen?->user?->avatar,
                 ],
                 'mata_kuliah' => [
-                    'kode_mk' => $kelas->mataKuliah?->kode_mk,
                     'nama_mk' => $kelas->mataKuliah?->nama_mk,
                     'sks' => $kelas->mataKuliah?->sks,
                     'jenis_mk' => $kelas->mataKuliah?->jenis_mk,
@@ -220,6 +237,8 @@ class KelasDetailController extends Controller
             'penilaians' => $penilaians,
             'anggota' => $anggota,
             'my_nilai' => $myNilai,
+            'anggota_kelas_id' => $anggotaKelasRecord?->id,           // ← tambah
+            'can_leave'        => !$hasGrades && !$hasSubmissions,
         ]);
     }
 }

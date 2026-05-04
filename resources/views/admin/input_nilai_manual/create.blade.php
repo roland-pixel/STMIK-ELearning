@@ -25,7 +25,8 @@
                 @csrf
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm">
-                        <thead class="bg-slate-50 text-ink-600 uppercase text-[11px] font-bold tracking-wider">
+                        <thead
+                            class="bg-slate-50  sticky top-0 z-10 text-ink-600 uppercase text-[11px] font-bold tracking-wider">
                             <tr>
                                 <th class="px-6 py-4">Mahasiswa</th>
                                 <th class="px-2 py-4 text-center" width="120">Tugas</th>
@@ -67,8 +68,6 @@
                 </div>
 
                 <div class="p-6 bg-slate-50 border-t border-slate-100 flex justify-end items-center gap-4">
-                    <span class="text-xs text-ink-500 italic">* Nilai akan dikalkulasi otomatis oleh sistem setelah
-                        disimpan.</span>
                     <button type="submit"
                         class="inline-flex justify-center rounded-xl bg-maroon-700 px-6 py-2.5 text-sm font-bold text-white hover:bg-maroon-800 transition shadow-lg">
                         Simpan & Kalkulasi

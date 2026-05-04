@@ -32,7 +32,7 @@ class InputNilaiManualController extends Controller
             return $q->where('dosen_id', $request->dosen_id);
         });
 
-        $kelasKosong = $query->latest()->get();
+        $kelasKosong = $query->latest()->paginate(20);
 
         // 4. Ambil data untuk dropdown filter
         $listMataKuliah = MataKuliah::orderBy('nama_mk')->get();
@@ -62,7 +62,6 @@ class InputNilaiManualController extends Controller
      */
     public function store(Request $request, $kelas_id)
     {
-        // 1. Validasi Input
         $request->validate([
             'data_nilai' => 'required|array',
             'data_nilai.*.tugas' => 'required|numeric|min:0|max:100',
@@ -73,8 +72,6 @@ class InputNilaiManualController extends Controller
         try {
             DB::beginTransaction();
 
-            // 2. Buat 3 Kategori Penilaian di tabel 'penilaians'
-            // Ini agar sistem tahu kelas ini punya komponen Tugas, UTS, dan UAS
             $kategoriList = ['tugas', 'uts', 'uas'];
             $mapPenilaian = [];
 
@@ -87,104 +84,66 @@ class InputNilaiManualController extends Controller
                     'kategori'       => $kat,
                     'mode_penilaian' => 'manual',
                 ]);
-
-                // Simpan ID penilaian yang baru dibuat untuk digunakan di tabel pengumpulans
                 $mapPenilaian[$kat] = $penilaian->id;
             }
 
-            // 3. Simpan Nilai masing-masing Mahasiswa ke tabel 'pengumpulans'
             foreach ($request->data_nilai as $mahasiswa_id => $nilai) {
+                // Kita simpan salah satu ID pengumpulan untuk trigger regenerasi rekap
+                $lastPengumpulanId = null;
 
-                // Simpan Nilai Tugas
-                $tugasPengumpulan = Pengumpulan::create([
-                    'uuid'         => (string) Str::uuid(),
-                    'penilaian_id' => $mapPenilaian['tugas'],
-                    'mahasiswa_id' => $mahasiswa_id,
-                    'waktu_mulai'  => now(),
-                    'waktu_selesai' => now(),
-                    'nilai_total'  => $nilai['tugas'],
-                ]);
+                foreach ($kategoriList as $kat) {
+                    $p = Pengumpulan::create([
+                        'uuid'         => (string) Str::uuid(),
+                        'penilaian_id' => $mapPenilaian[$kat],
+                        'mahasiswa_id' => $mahasiswa_id,
+                        'waktu_mulai'  => now(),
+                        'waktu_selesai' => now(),
+                        'nilai_total'  => $nilai[$kat],
+                    ]);
+                    $lastPengumpulanId = $p->id;
+                }
 
-                // Simpan Nilai UTS
-                Pengumpulan::create([
-                    'uuid'         => (string) Str::uuid(),
-                    'penilaian_id' => $mapPenilaian['uts'],
-                    'mahasiswa_id' => $mahasiswa_id,
-                    'waktu_mulai'  => now(),
-                    'waktu_selesai' => now(),
-                    'nilai_total'  => $nilai['uts'],
-                ]);
-
-                // Simpan Nilai UAS
-                Pengumpulan::create([
-                    'uuid'         => (string) Str::uuid(),
-                    'penilaian_id' => $mapPenilaian['uas'],
-                    'mahasiswa_id' => $mahasiswa_id,
-                    'waktu_mulai'  => now(),
-                    'waktu_selesai' => now(),
-                    'nilai_total'  => $nilai['uas'],
-                ]);
-
-                $this->regenerateRekapNilai($tugasPengumpulan->id);
+                // Panggil rekap SEKALI per mahasiswa setelah semua nilai kategori masuk
+                $this->regenerateRekapNilai($lastPengumpulanId);
             }
 
             DB::commit();
-
-            return redirect()->route('admin.input_nilai_manual.index')
-                ->with('success', 'Data penilaian dan pengumpulan nilai berhasil disimpan.');
+            return redirect()->route('admin.input_nilai_manual.index')->with('success', 'Nilai berhasil disimpan.');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Terjadi kesalahan saat menyimpan: ' . $e->getMessage());
+            return back()->with('error', 'Gagal: ' . $e->getMessage());
         }
     }
 
     /**
      * Regenerate rekap_nilais untuk mahasiswa di kelas
-     * (SUDAH RATA‑RATA BERDASARKAN JUMLAH TUGAS DI KELAS)
+     * (Logika baru: Menyimpan nilai per kelas agar tidak tertimpa saat mengulang)
      */
     private function regenerateRekapNilai($pengumpulanId)
     {
         $pengumpulan = Pengumpulan::with(['penilaian.kelas', 'mahasiswa'])->find($pengumpulanId);
-        if (!$pengumpulan) {
-            return;
-        }
+        if (!$pengumpulan) return;
 
         $mahasiswaId = $pengumpulan->mahasiswa_id;
-        $kelasId = $pengumpulan->penilaian->kelas_id;
-        $kelas = Kelas::find($kelasId);
+        $kelas = $pengumpulan->penilaian->kelas;
+        $kelasId = $kelas->id;
 
-        // 1. Semua pengumpulan mahasiswa di kelas ini
+        // 1. Ambil semua data pengumpulan mahasiswa ini DI KELAS INI
         $semuaPengumpulan = Pengumpulan::whereHas('penilaian', fn($q) => $q->where('kelas_id', $kelasId))
             ->where('mahasiswa_id', $mahasiswaId)
             ->get()
             ->groupBy('penilaian.kategori');
 
-        // 2. Hitung total tugas di kelas (semua tugas)
-        $totalTugasDiKelas = Penilaian::where('kelas_id', $kelasId)
-            ->where('kategori', 'tugas')
-            ->count();
+        // 2. Hitung Rata-rata Tugas
+        $totalTugasDiKelas = Penilaian::where('kelas_id', $kelasId)->where('kategori', 'tugas')->count();
+        $sumNilaiTugas = $semuaPengumpulan->get('tugas', collect())->sum('nilai_total');
+        $totalTugas = $totalTugasDiKelas > 0 ? $sumNilaiTugas / $totalTugasDiKelas : 0;
 
-        // 3. Hitung total nilai tugas yang sudah ada
-        $pengumpulanTugas = $semuaPengumpulan->get('tugas', collect());
-        $sumNilaiTugas = $pengumpulanTugas->sum('nilai_total');
+        // 3. Ambil Nilai UTS & UAS
+        $totalUts = $semuaPengumpulan->has('uts') ? $semuaPengumpulan->get('uts')->avg('nilai_total') : 0;
+        $totalUas = $semuaPengumpulan->has('uas') ? $semuaPengumpulan->get('uas')->avg('nilai_total') : 0;
 
-        // 4. total_tugas = rata‑rata dari semua tugas kelas
-        $totalTugas = $totalTugasDiKelas > 0
-            ? $sumNilaiTugas / $totalTugasDiKelas
-            : 0;
-
-        // 5. UTS & UAS
-        $totalUts = 0;
-        $totalUas = 0;
-
-        if ($semuaPengumpulan->has('uts')) {
-            $totalUts = $semuaPengumpulan->get('uts')->sum('nilai_total');
-        }
-        if ($semuaPengumpulan->has('uas')) {
-            $totalUas = $semuaPengumpulan->get('uas')->sum('nilai_total');
-        }
-
-        // 6. Hitung nilai akhir
+        // 4. Hitung Nilai Akhir
         $nilaiAkhir = round(
             ($totalTugas * $kelas->persentase_tugas / 100) +
                 ($totalUts * $kelas->persentase_uts / 100) +
@@ -192,20 +151,21 @@ class InputNilaiManualController extends Controller
             2
         );
 
+        // 5. SIMPAN/UPDATE NILAI HANYA UNTUK KELAS INI (Tidak ada perbandingan nilai tertinggi)
         RekapNilai::updateOrCreate(
             [
                 'mahasiswa_id' => $mahasiswaId,
-                'kelas_id' => $kelasId
+                'kelas_id'     => $kelasId, // Kunci utama: Unik per kelas, aman untuk mengulang
             ],
             [
-                'semester_id' => $kelas->semester_id,
-                'mata_kuliah_id' => $kelas->mata_kuliah_id,
-                'total_tugas' => $totalTugas,
-                'total_uts' => $totalUts,
-                'total_uas' => $totalUas,
+                'semester_id'       => $kelas->semester_id,
+                'mata_kuliah_id'    => $kelas->mata_kuliah_id,
+                'total_tugas'       => $totalTugas,
+                'total_uts'         => $totalUts,
+                'total_uas'         => $totalUas,
                 'nilai_akhir_angka' => $nilaiAkhir,
-                'nilai_huruf' => $this->konversiHuruf($nilaiAkhir),
-                'nilai_indeks' => $this->konversiIndeks($nilaiAkhir),
+                'nilai_huruf'       => $this->konversiHuruf($nilaiAkhir),
+                'nilai_indeks'      => $this->konversiIndeks($nilaiAkhir),
             ]
         );
     }

@@ -65,7 +65,6 @@ class PenilaianManualController extends Controller
             'nilai_mahasiswa.*.nilai' => ['required', 'numeric', 'min:0', 'max:100'],
         ]);
 
-        // ✅ VALIDASI UTS/UAS DUPLIKAT
         if (in_array($data['kategori'], ['uts', 'uas'])) {
             $existing = Penilaian::where('kelas_id', $kelas->id)
                 ->where('kategori', $data['kategori'])
@@ -112,13 +111,11 @@ class PenilaianManualController extends Controller
         abort_if($penilaian->kelas_id !== $kelas->id, 404);
         abort_if($penilaian->mode_penilaian !== 'manual', 404);
 
-        // ✅ AMBIL PENGUMPULAN YANG SUDAH ADA
         $pengumpulans = Pengumpulan::where('penilaian_id', $penilaian->id)
             ->with('mahasiswa.user')
             ->get()
             ->keyBy('mahasiswa_id');
 
-        // ✅ AMBIL SEMUA MAHASISWA KELAS
         $mahasiswas = $kelas->anggotaKelases()
             ->with('mahasiswa.user')
             ->get()
@@ -130,14 +127,14 @@ class PenilaianManualController extends Controller
                     'id' => $mhs->id,
                     'nim' => $mhs->nim,
                     'nama' => $mhs->user->nama_lengkap,
-                    'nilai' => $pengumpulan?->nilai_total ?? 0,  // ✅ NILAI DARI DB!
+                    'nilai' => $pengumpulan?->nilai_total ?? 0,
                 ];
             });
 
         $usedCategories = Penilaian::where('kelas_id', $kelas->id)
             ->whereIn('kategori', ['uts', 'uas'])
             ->where('mode_penilaian', 'manual')
-            ->where('id', '!=', $penilaian->id)  // Kecuali penilaian ini
+            ->where('id', '!=', $penilaian->id)
             ->pluck('kategori')
             ->toArray();
 
@@ -150,14 +147,11 @@ class PenilaianManualController extends Controller
                 'instruksi' => $penilaian->instruksi,
                 'kategori' => $penilaian->kategori,
             ],
-            'mahasiswas' => $mahasiswas,  // ✅ DATA LENGKAP!
+            'mahasiswas' => $mahasiswas,
             'usedCategories' => $usedCategories,
         ]);
     }
 
-    /**
-     * ✅ UPDATE METHOD YANG SUDAH DI-FIX
-     */
     public function update(Request $request, Kelas $kelas, Penilaian $penilaian)
     {
         $this->ensureOwner($kelas);
@@ -166,7 +160,6 @@ class PenilaianManualController extends Controller
 
         $allowedIds = $kelas->anggotaKelases()->pluck('mahasiswa_id')->toArray();
 
-        // ✅ VALIDASI REQUEST
         $data = $request->validate([
             'judul' => ['sometimes', 'required', 'string', 'max:255'],
             'kategori' => ['sometimes', 'required', 'in:tugas,uts,uas'],
@@ -176,11 +169,10 @@ class PenilaianManualController extends Controller
             'nilai_mahasiswa.*.nilai' => ['required', 'numeric', 'between:0,100'],
         ]);
 
-        // 🔥 VALIDASI KATEGORI UTS/UAS DUPLIKAT - UPDATE
         if (isset($data['kategori']) && in_array($data['kategori'], ['uts', 'uas'])) {
             $existing = Penilaian::where('kelas_id', $kelas->id)
                 ->where('kategori', $data['kategori'])
-                ->where('id', '!=', $penilaian->id)  // ✅ Kecuali penilaian ini sendiri
+                ->where('id', '!=', $penilaian->id)
                 ->where('mode_penilaian', 'manual')
                 ->exists();
 
@@ -191,20 +183,17 @@ class PenilaianManualController extends Controller
             }
         }
 
-        // ✅ FIX: $request di-use ke closure
         return DB::transaction(function () use ($request, $kelas, $penilaian, $data) {
-            // 1. Update penilaian (termasuk kategori jika ada)
             $penilaianData = array_filter([
                 'judul' => $data['judul'] ?? null,
                 'instruksi' => $data['instruksi'] ?? null,
-                'kategori' => $data['kategori'] ?? null,  // ✅ Kategori bisa diupdate
+                'kategori' => $data['kategori'] ?? null,
             ], fn($value) => $value !== null);
 
             if (!empty($penilaianData)) {
                 $penilaian->update($penilaianData);
             }
 
-            // 2. Update nilai mahasiswa
             $mahasiswaIds = array_column($data['nilai_mahasiswa'], 'id');
             $uniqueMahasiswaIds = array_unique($mahasiswaIds);
 
@@ -215,14 +204,14 @@ class PenilaianManualController extends Controller
                         'mahasiswa_id' => $item['id'],
                     ],
                     [
-                        'waktu_mulai' => now(),
+                        'uuid'          => (string) \Illuminate\Support\Str::uuid(), // Tambahkan ini
+                        'waktu_mulai'   => now(),
                         'waktu_selesai' => now(),
-                        'nilai_total' => $item['nilai'],
+                        'nilai_total'   => $item['nilai'],
                     ]
                 );
             }
 
-            // 3. Regenerate rekap nilai (perlu $request untuk closure)
             foreach ($uniqueMahasiswaIds as $mahasiswaId) {
                 $this->regenerateRekapNilaiForMahasiswa($penilaian->id, $mahasiswaId);
             }
@@ -232,14 +221,10 @@ class PenilaianManualController extends Controller
         });
     }
 
-    /**
-     * ✅ NEW: Optimized regenerate untuk 1 mahasiswa
-     */
     private function regenerateRekapNilaiForMahasiswa($penilaianId, $mahasiswaId)
     {
         $pengumpulan = Pengumpulan::where('penilaian_id', $penilaianId)
             ->where('mahasiswa_id', $mahasiswaId)
-            ->with(['penilaian.kelas'])
             ->first();
 
         if (!$pengumpulan) return;
@@ -247,36 +232,36 @@ class PenilaianManualController extends Controller
         $this->regenerateRekapNilai($pengumpulan->id);
     }
 
+    /**
+     * Regenerate rekap_nilai (OPTIMIZED & KRONOLOGIS)
+     * Sekarang menyimpan record secara unik per kelas.
+     */
     private function regenerateRekapNilai($pengumpulanId)
     {
         $pengumpulan = Pengumpulan::with(['penilaian.kelas', 'mahasiswa'])->find($pengumpulanId);
         if (!$pengumpulan) return;
 
         $mahasiswaId = $pengumpulan->mahasiswa_id;
-        $kelasId = $pengumpulan->penilaian->kelas_id;
-        $kelas = Kelas::find($kelasId);
+        $kelasId     = $pengumpulan->penilaian->kelas_id;
+        $kelas       = Kelas::find($kelasId);
         if (!$kelas) return;
 
+        // 1. Ambil data pengumpulan mahasiswa di KELAS INI
         $semuaPengumpulan = Pengumpulan::whereHas('penilaian', fn($q) => $q->where('kelas_id', $kelasId))
             ->where('mahasiswa_id', $mahasiswaId)
             ->with('penilaian')
             ->get()
             ->groupBy('penilaian.kategori');
 
-        $totalTugasDiKelas = Penilaian::where('kelas_id', $kelasId)
-            ->where('kategori', 'tugas')
-            ->count();
-
-        $pengumpulanTugas = $semuaPengumpulan->get('tugas', collect());
-        $sumNilaiTugas = $pengumpulanTugas->sum('nilai_total');
-
-        $totalTugas = $totalTugasDiKelas > 0
-            ? round($sumNilaiTugas / $totalTugasDiKelas, 2)
-            : 0;
+        // 2. Hitung komponen nilai
+        $totalTugasDiKelas = Penilaian::where('kelas_id', $kelasId)->where('kategori', 'tugas')->count();
+        $sumNilaiTugas = $semuaPengumpulan->get('tugas', collect())->sum('nilai_total');
+        $totalTugas = $totalTugasDiKelas > 0 ? round($sumNilaiTugas / $totalTugasDiKelas, 2) : 0;
 
         $totalUts = $this->hitungRataRataKategori($semuaPengumpulan, 'uts');
         $totalUas = $this->hitungRataRataKategori($semuaPengumpulan, 'uas');
 
+        // 3. Hitung Nilai Akhir
         $nilaiAkhir = round(
             ($totalTugas * $kelas->persentase_tugas / 100) +
                 ($totalUts * $kelas->persentase_uts / 100) +
@@ -284,20 +269,24 @@ class PenilaianManualController extends Controller
             2
         );
 
+        // 4. 🔥 SIMPAN/UPDATE UNIK PER KELAS
+        // Menggunakan updateOrCreate dengan mahasiswa_id & kelas_id sebagai filter.
+        // Dengan ini, koreksi nilai di kelas ini tidak akan mengganggu rekap nilai
+        // dari mata kuliah yang sama di kelas/semester lainnya.
         RekapNilai::updateOrCreate(
             [
                 'mahasiswa_id' => $mahasiswaId,
-                'kelas_id' => $kelasId
+                'kelas_id'     => $kelasId
             ],
             [
-                'semester_id' => $kelas->semester_id,
-                'mata_kuliah_id' => $kelas->mata_kuliah_id,
-                'total_tugas' => $totalTugas,
-                'total_uts' => $totalUts,
-                'total_uas' => $totalUas,
+                'semester_id'       => $kelas->semester_id,
+                'mata_kuliah_id'    => $kelas->mata_kuliah_id,
+                'total_tugas'       => $totalTugas,
+                'total_uts'         => $totalUts,
+                'total_uas'         => $totalUas,
                 'nilai_akhir_angka' => $nilaiAkhir,
-                'nilai_huruf' => $this->konversiHuruf($nilaiAkhir),
-                'nilai_indeks' => $this->konversiIndeks($nilaiAkhir),
+                'nilai_huruf'       => $this->konversiHuruf($nilaiAkhir),
+                'nilai_indeks'      => $this->konversiIndeks($nilaiAkhir),
             ]
         );
     }

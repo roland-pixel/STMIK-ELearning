@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
 
             // siapa yang melakukan
-            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('user_id')->nullable()->constrained('users')->onDelete('set null');
 
             // info aksi
             $table->string('action'); // created|updated|deleted

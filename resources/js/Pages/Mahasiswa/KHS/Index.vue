@@ -184,7 +184,7 @@ onMounted(() => {
                             <tbody class="bg-white divide-y divide-gray-200">
                                 <tr v-for="(item, index) in props.khsData" :key="index" class="hover:bg-gray-50">
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                        {{ item.kode_mk }}
+                                        {{ item.kode_tampil || item.kode_mk }}
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-900">
                                         {{ item.nama_mk }}

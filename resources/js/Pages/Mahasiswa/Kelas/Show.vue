@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 import { usePage } from "@inertiajs/vue3";
+import { router } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/Mahasiswa/AppLayout.vue";
 
 import HeaderTabs from "./Partials/HeaderTabs.vue";
@@ -15,6 +16,8 @@ const props = defineProps({
     penilaians: { type: Array, default: () => [] },
     anggota: { type: Array, default: () => [] },
     my_nilai: { type: Object, default: null },
+    anggota_kelas_id: { type: Number, default: null },   // ← tambah
+    can_leave: { type: Boolean, default: false },
 });
 
 const page = usePage();
@@ -62,12 +65,32 @@ const progressPct = (list) => {
     const submitted = list.filter((p) => p?.my?.status === "submitted").length;
     return Math.max(0, Math.min(100, Math.round((submitted / total) * 100)));
 };
+
+const confirmLeave = () => {
+    if (!props.can_leave) return;
+    if (!confirm('Yakin ingin keluar dari kelas ini?')) return;
+    router.delete(route('mahasiswa.kelas.leave', props.anggota_kelas_id));
+};
 </script>
 
 <template>
     <AppLayout :classes="classes" title="Classroom">
         <div class="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-0">
-            <HeaderTabs v-model:tab="tab" :tabs="tabs" />
+            <div
+                class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+                <HeaderTabs v-model:tab="tab" :tabs="tabs" />
+
+                <div class="flex justify-end w-full sm:w-auto">
+                    <button @click="confirmLeave" :disabled="!can_leave" :title="can_leave
+                        ? 'Keluar dari kelas ini'
+                        : 'Tidak bisa keluar: sudah ada tugas atau nilai'"
+                        class="rounded-lg border px-4 py-2 text-sm font-medium transition-colors" :class="can_leave
+                            ? 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100 cursor-pointer'
+                            : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'">
+                        Keluar Kelas
+                    </button>
+                </div>
+            </div>
 
             <!-- Flash -->
             <div v-if="page.props.flash?.success"

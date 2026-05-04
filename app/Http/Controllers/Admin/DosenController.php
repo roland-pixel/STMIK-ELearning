@@ -17,6 +17,7 @@ class DosenController extends Controller
     public function index(Request $request)
     {
         $q = $request->get('q');
+        $homebase = $request->get('homebase');
 
         $dosens = Dosen::query()
             ->with('user')
@@ -30,11 +31,21 @@ class DosenController extends Controller
                             ->orWhere('email', 'like', "%{$q}%")
                     )
             )
+            ->when(
+                $homebase,
+                fn($query) => $query->where('homebase', $homebase)
+            )
             ->latest()
             ->paginate(10)
             ->withQueryString();
 
-        return view('admin.dosens.index', compact('dosens', 'q'));
+        // Ambil semua homebase unik yang ada di DB untuk opsi filter
+        $homebases = Dosen::whereNotNull('homebase')
+            ->distinct()
+            ->orderBy('homebase')
+            ->pluck('homebase');
+
+        return view('admin.dosens.index', compact('dosens', 'q', 'homebase', 'homebases'));
     }
 
     public function create()

@@ -41,12 +41,20 @@ class KelolaTranskripController extends Controller
 
     private function getTranskripData($mahasiswaId)
     {
-        // Query Gabungan Umum & Spesial dengan pengambilan nilai tertinggi
+        $mahasiswa = Mahasiswa::find($mahasiswaId);
+        $jurusanId = $mahasiswa->jurusan_id;
+
+        // Gunakan leftJoin agar mata kuliah tetap muncul meski belum ada di tabel kurikulums
         $subQuery = DB::table('rekap_nilais as r')
             ->join('mata_kuliahs as mk', 'r.mata_kuliah_id', '=', 'mk.id')
+            ->leftJoin('kurikulums as k', function ($join) use ($jurusanId) {
+                $join->on('mk.id', '=', 'k.mata_kuliah_id')
+                    ->where('k.jurusan_id', '=', $jurusanId);
+            })
             ->where('r.mahasiswa_id', $mahasiswaId)
             ->select(
-                'mk.kode_mk',
+                // Gunakan COALESCE jika kode_tampil null
+                DB::raw('COALESCE(k.kode_mk_jurusan, "N/A") as kode_tampil'),
                 'mk.nama_mk',
                 'mk.sks',
                 'r.nilai_akhir_angka',
@@ -55,10 +63,14 @@ class KelolaTranskripController extends Controller
             ->union(
                 DB::table('bimbingans as b')
                     ->join('mata_kuliahs as mk', 'b.mata_kuliah_id', '=', 'mk.id')
+                    ->leftJoin('kurikulums as k', function ($join) use ($jurusanId) {
+                        $join->on('mk.id', '=', 'k.mata_kuliah_id')
+                            ->where('k.jurusan_id', '=', $jurusanId);
+                    })
                     ->where('b.mahasiswa_id', $mahasiswaId)
                     ->where('b.status', 'approved')
                     ->select(
-                        'mk.kode_mk',
+                        DB::raw('COALESCE(k.kode_mk_jurusan, "N/A") as kode_tampil'),
                         'mk.nama_mk',
                         'mk.sks',
                         'b.nilai_angka as nilai_akhir_angka',
@@ -66,22 +78,25 @@ class KelolaTranskripController extends Controller
                     )
             );
 
-        // Grouping untuk mengambil nilai terbaik jika ada matkul yang sama (retake)
         $data = DB::table(DB::raw("({$subQuery->toSql()}) as combined"))
             ->mergeBindings($subQuery)
             ->select(
-                'kode_mk',
+                'kode_tampil',
                 'nama_mk',
                 'sks',
                 DB::raw('MAX(nilai_akhir_angka) as nilai_angka')
             )
-            ->groupBy('kode_mk', 'nama_mk', 'sks')
-            ->orderBy('kode_mk', 'asc')
+            ->groupBy('kode_tampil', 'nama_mk', 'sks')
+            ->orderBy('kode_tampil', 'asc')
             ->get();
 
         return $data->map(function ($item) {
             $item->huruf = $this->konversiHuruf($item->nilai_angka);
             $item->indeks = $this->konversiIndeks($item->nilai_angka);
+            // Indeks untuk bimbingan (NULL di awal) harus dihitung di sini
+            if ($item->indeks === null) {
+                $item->indeks = $this->konversiIndeks($item->nilai_angka);
+            }
             $item->bobot = $item->sks * $item->indeks;
             return $item;
         });

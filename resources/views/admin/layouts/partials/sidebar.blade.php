@@ -221,9 +221,9 @@
                     <span class="{{ navLabelClass(['admin.transkrip.*']) }}">Kelola Transkrip</span>
                 </a>
 
-                {{-- Rekap Nilai --}}
+                {{-- Cumlaude --}}
                 <a class="flex items-center gap-3 px-3 py-2.5 rounded-2xl transition text-ink-700 hover:bg-ink-100"
-                    href="#">
+                    href="{{ route('admin.cumlaude.index') }}">
                     <span
                         class="w-9 h-9 rounded-xl bg-white border border-ink-200 flex items-center justify-center text-ink-600">
                         {{-- Chart --}}
@@ -234,7 +234,7 @@
                                 stroke-linecap="round" />
                         </svg>
                     </span>
-                    <span class="font-medium">Rekap Nilai</span>
+                    <span class="font-medium">Cumlaude</span>
                 </a>
 
             </div>

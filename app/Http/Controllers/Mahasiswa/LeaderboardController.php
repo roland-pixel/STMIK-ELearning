@@ -71,7 +71,7 @@ class LeaderboardController extends Controller
      *
      * LOGIKA BIMBINGAN:
      * - PKL / Pra Skripsi / Skripsi yang nilai_angka masih NULL → SKIP
-     *   (belum selesai, tidak boleh merusak IPK dan tidak dihitung SKS-nya)
+     * (belum selesai, tidak boleh merusak IPK dan tidak dihitung SKS-nya)
      * - Hanya yang status='approved' DAN nilai_angka IS NOT NULL yang masuk hitungan
      *
      * Di-cache 5 menit agar tidak N+1 query saat load leaderboard
@@ -80,28 +80,36 @@ class LeaderboardController extends Controller
     {
         return Cache::remember("academic_metrics_{$mahasiswaId}", 300, function () use ($mahasiswaId) {
 
+            // Ambil data jurusan mahasiswa untuk mengambil kode kurikulum
+            $mahasiswa = Mahasiswa::find($mahasiswaId);
+            $jurusanId = $mahasiswa->jurusan_id;
+
             // --- Sumber 1: Nilai dari kelas reguler (rekap_nilais) ---
-            // nilai_akhir_angka di sini selalu terisi karena datang dari pengumpulans
             $regularQuery = DB::table('rekap_nilais as r')
                 ->join('mata_kuliahs as mk', 'r.mata_kuliah_id', '=', 'mk.id')
+                ->join('kurikulums as k', function ($join) use ($jurusanId) {
+                    $join->on('k.mata_kuliah_id', '=', 'mk.id')
+                        ->where('k.jurusan_id', $jurusanId);
+                })
                 ->where('r.mahasiswa_id', $mahasiswaId)
                 ->select(
-                    'mk.kode_mk',
+                    'k.kode_mk_jurusan as kode_mk', // Mengambil kode dari tabel kurikulum
                     'mk.sks',
                     'r.nilai_akhir_angka'
                 );
 
             // --- Sumber 2: Nilai bimbingan (PKL, Pra Skripsi, Skripsi) ---
-            // WAJIB: status='approved' DAN nilai_angka IS NOT NULL
-            // Jika mahasiswa masih semester 5 dan bimbingan belum ada / masih pending
-            // → otomatis tidak ada row yang masuk dari query ini → aman
             $bimbinganQuery = DB::table('bimbingans as b')
                 ->join('mata_kuliahs as mk', 'b.mata_kuliah_id', '=', 'mk.id')
+                ->join('kurikulums as k', function ($join) use ($jurusanId) {
+                    $join->on('k.mata_kuliah_id', '=', 'mk.id')
+                        ->where('k.jurusan_id', $jurusanId);
+                })
                 ->where('b.mahasiswa_id', $mahasiswaId)
                 ->where('b.status', 'approved')
-                ->whereNotNull('b.nilai_angka') // ← KUNCI: skip bimbingan yang belum dinilai
+                ->whereNotNull('b.nilai_angka')
                 ->select(
-                    'mk.kode_mk',
+                    'k.kode_mk_jurusan as kode_mk', // Mengambil kode dari tabel kurikulum
                     'mk.sks',
                     'b.nilai_angka as nilai_akhir_angka'
                 );
@@ -110,13 +118,12 @@ class LeaderboardController extends Controller
             $unionQuery = $regularQuery->union($bimbinganQuery);
 
             // --- Ambil nilai terbaik per mata kuliah (handle kasus retake/mengulang) ---
-            // GROUP BY kode_mk karena satu MK bisa muncul 2x jika mahasiswa mengulang
             $data = DB::table(DB::raw("({$unionQuery->toSql()}) as combined"))
                 ->mergeBindings($unionQuery)
                 ->select(
                     'kode_mk',
                     'sks',
-                    DB::raw('MAX(nilai_akhir_angka) as nilai_angka') // ambil nilai terbaik
+                    DB::raw('MAX(nilai_akhir_angka) as nilai_angka')
                 )
                 ->groupBy('kode_mk', 'sks')
                 ->get();
@@ -126,8 +133,6 @@ class LeaderboardController extends Controller
             $totalKredit = 0.0;
 
             foreach ($data as $item) {
-                // Defensive check: skip jika nilai masih null (seharusnya tidak terjadi
-                // karena sudah difilter, tapi untuk keamanan ekstra)
                 if (is_null($item->nilai_angka)) {
                     continue;
                 }

@@ -21,9 +21,6 @@ class KelasController extends Controller
     public function index(Request $request)
     {
         $q = $request->get('q');
-
-        // filter semester: active | inactive | all (opsional)
-        // default: active
         $semesterStatus = $request->get('semester_status', 'active');
 
         $kelases = Kelas::query()
@@ -38,25 +35,12 @@ class KelasController extends Controller
             ->when(
                 $q,
                 fn($query) => $query->where(function ($query) use ($q) {
-                    $query
-                        ->where('nama_kelas', 'like', "%{$q}%")
+                    $query->where('nama_kelas', 'like', "%{$q}%")
                         ->orWhere('kode_gabung', 'like', "%{$q}%")
-                        ->orWhereHas(
-                            'mataKuliah',
-                            fn($mk) => $mk
-                                ->where('kode_mk', 'like', "%{$q}%")
-                                ->orWhere('nama_mk', 'like', "%{$q}%")
-                        )
-                        ->orWhereHas(
-                            'semester',
-                            fn($s) => $s->where('nama_semester', 'like', "%{$q}%")
-                        )
-                        ->orWhereHas(
-                            'dosen.user',
-                            fn($u) => $u
-                                ->where('nama_lengkap', 'like', "%{$q}%")
-                                ->orWhere('email', 'like', "%{$q}%")
-                        );
+
+                        ->orWhereHas('semester', fn($s) => $s->where('nama_semester', 'like', "%{$q}%"))
+                        ->orWhereHas('dosen.user', fn($u) => $u->where('nama_lengkap', 'like', "%{$q}%")->orWhere('email', 'like', "%{$q}%"))
+                        ->orWhereHas('mataKuliah', fn($mk) => $mk->where('nama_mk', 'like', "%{$q}%"));
                 })
             )
             ->latest()
@@ -69,13 +53,7 @@ class KelasController extends Controller
     public function create()
     {
         $dosens = Dosen::query()->with('user')->orderByDesc('id')->get();
-
-        // ✅ Hanya MK dengan jenis_mk = "Umum"
-        $mataKuliahs = MataKuliah::query()
-            ->where('jenis_mk', 'Umum')
-            ->orderBy('nama_mk')
-            ->get();
-
+        $mataKuliahs = MataKuliah::query()->where('jenis_mk', 'Umum')->orderBy('nama_mk')->get();
         $semesters = Semester::query()->orderByDesc('id')->get();
 
         return view('admin.kelases.create', compact('dosens', 'mataKuliahs', 'semesters'));
@@ -85,13 +63,10 @@ class KelasController extends Controller
     {
         $validated = $request->validate([
             'dosen_id' => ['required', 'exists:dosens,id'],
-
-            // ✅ Wajib MK "Umum" (aman dari request yang dimanipulasi)
             'mata_kuliah_id' => [
                 'required',
                 Rule::exists('mata_kuliahs', 'id')->where(fn($q) => $q->where('jenis_mk', 'Umum')),
             ],
-
             'semester_id' => ['required', 'exists:semesters,id'],
             'nama_kelas' => ['required', 'string', 'max:255'],
             'kode_gabung' => ['nullable', 'string', 'max:50', 'unique:kelases,kode_gabung'],
@@ -101,46 +76,28 @@ class KelasController extends Controller
             'persentase_uas' => ['required', 'integer', 'min:0', 'max:100'],
         ]);
 
-        $total = (int) $validated['persentase_tugas']
-            + (int) $validated['persentase_uts']
-            + (int) $validated['persentase_uas'];
-
-        if ($total !== 100) {
-            return back()
-                ->withErrors(['persentase_uas' => 'Total persentase Tugas + UTS + UAS harus 100.'])
-                ->withInput();
+        if (((int)$validated['persentase_tugas'] + (int)$validated['persentase_uts'] + (int)$validated['persentase_uas']) !== 100) {
+            return back()->withErrors(['persentase_uas' => 'Total persentase harus 100.'])->withInput();
         }
 
-        // Auto generate kode_gabung jika kosong
         if (empty($validated['kode_gabung'])) {
             do {
                 $kode = strtoupper(Str::random(8));
             } while (Kelas::where('kode_gabung', $kode)->exists());
-
             $validated['kode_gabung'] = $kode;
         }
 
         $validated['uuid'] = (string) Str::uuid();
-
         Kelas::create($validated);
 
-        return redirect()
-            ->route('admin.kelases.index')
-            ->with('success', 'Kelas berhasil ditambahkan.');
+        return redirect()->route('admin.kelases.index')->with('success', 'Kelas berhasil ditambahkan.');
     }
 
     public function edit(Kelas $kelase)
     {
         $kelase->load(['dosen.user', 'mataKuliah', 'semester']);
-
         $dosens = Dosen::query()->with('user')->orderByDesc('id')->get();
-
-        // ✅ Hanya MK dengan jenis_mk = "Umum"
-        $mataKuliahs = MataKuliah::query()
-            ->where('jenis_mk', 'Umum')
-            ->orderBy('nama_mk')
-            ->get();
-
+        $mataKuliahs = MataKuliah::query()->where('jenis_mk', 'Umum')->orderBy('nama_mk')->get();
         $semesters = Semester::query()->orderByDesc('id')->get();
 
         return view('admin.kelases.edit', compact('kelase', 'dosens', 'mataKuliahs', 'semesters'));
@@ -156,116 +113,91 @@ class KelasController extends Controller
             ],
             'semester_id' => ['required', 'exists:semesters,id'],
             'nama_kelas' => ['required', 'string', 'max:255'],
-            'kode_gabung' => [
-                'required',
-                'string',
-                'max:50',
-                Rule::unique('kelases', 'kode_gabung')->ignore($kelase->id),
-            ],
+            'kode_gabung' => ['required', 'string', 'max:50', Rule::unique('kelases', 'kode_gabung')->ignore($kelase->id)],
             'deskripsi' => ['nullable', 'string'],
             'persentase_tugas' => ['required', 'integer', 'min:0', 'max:100'],
             'persentase_uts' => ['required', 'integer', 'min:0', 'max:100'],
             'persentase_uas' => ['required', 'integer', 'min:0', 'max:100'],
         ]);
 
-        $total = (int) $validated['persentase_tugas']
-            + (int) $validated['persentase_uts']
-            + (int) $validated['persentase_uas'];
-
-        if ($total !== 100) {
-            return back()
-                ->withErrors(['persentase_uas' => 'Total persentase Tugas + UTS + UAS harus 100.'])
-                ->withInput();
+        if (((int)$validated['persentase_tugas'] + (int)$validated['persentase_uts'] + (int)$validated['persentase_uas']) !== 100) {
+            return back()->withErrors(['persentase_uas' => 'Total persentase harus 100.'])->withInput();
         }
 
         try {
             DB::transaction(function () use ($kelase, $validated) {
-                // 1. Simpan persentase lama untuk cek perubahan
-                $persentaseLama = [
-                    'tugas' => $kelase->persentase_tugas,
-                    'uts' => $kelase->persentase_uts,
-                    'uas' => $kelase->persentase_uas
-                ];
+                // Simpan persentase lama untuk perbandingan
+                $pOld = [$kelase->persentase_tugas, $kelase->persentase_uts, $kelase->persentase_uas];
 
-                // 2. UPDATE kelas
                 $kelase->update($validated);
 
-                // 🔥 3. CEK APAKAH PERSENTASE BERUBAH
-                $persentaseBaru = [
-                    'tugas' => $validated['persentase_tugas'],
-                    'uts' => $validated['persentase_uts'],
-                    'uas' => $validated['persentase_uas']
-                ];
+                // Cek apakah ada perubahan bobot nilai
+                $pNew = [(int)$validated['persentase_tugas'], (int)$validated['persentase_uts'], (int)$validated['persentase_uas']];
 
-                $adaPerubahanPersentase = $persentaseLama !== $persentaseBaru;
-
-                if ($adaPerubahanPersentase) {
-                    Log::info("Persentase kelas {$kelase->nama_kelas} berubah, regenerate rekap nilai");
-                    $this->regenerateAllRekapNilaiKelas($kelase->id);
+                if ($pOld !== $pNew) {
+                    Log::info("Bobot nilai kelas {$kelase->id} berubah, menghitung ulang rekap.");
+                    $this->regenerateAllRekapNilaiKelas($kelase);
                 }
             });
 
-            return redirect()
-                ->route('admin.kelases.index')
-                ->with('success', 'Kelas berhasil diperbarui. Rekap nilai otomatis terupdate!');
+            return redirect()->route('admin.kelases.index')->with('success', 'Kelas diperbarui dan rekap nilai disinkronkan.');
         } catch (\Exception $e) {
-            Log::error('Update kelas admin gagal: ' . $e->getMessage());
-            return back()->with('error', 'Gagal memperbarui kelas. Coba lagi.');
+            Log::error('Update kelas gagal: ' . $e->getMessage());
+            return back()->with('error', 'Gagal memperbarui kelas.');
         }
     }
 
     public function destroy(Kelas $kelas)
     {
+        // 1. Cek apakah ada data anak (Mahasiswa/Anggota, Materi, Penilaian)
+        $hasMahasiswa = $kelas->anggotaKelases()->exists();
+        $hasMateri = $kelas->materis()->exists();
+        $hasPenilaian = $kelas->penilaians()->exists();
+
+        // 2. Jika salah satu ada, larang penghapusan
+        if ($hasMahasiswa || $hasMateri || $hasPenilaian) {
+            return back()->with('error', 'Kelas tidak bisa dihapus karena sudah memiliki data mahasiswa, materi, atau penilaian.');
+        }
+
+        // 3. Jika aman, lakukan hapus
         $kelas->delete();
 
-        return redirect()
-            ->route('admin.kelases.index')
-            ->with('success', 'Kelas berhasil dihapus.');
-    }
-
-    private function regenerateAllRekapNilaiKelas($kelasId)
-    {
-        $kelas = Kelas::find($kelasId);
-        if (!$kelas) return;
-
-        // Ambil SEMUA mahasiswa di kelas
-        $mahasiswaIds = $kelas->anggotaKelases()->pluck('mahasiswa_id');
-
-        foreach ($mahasiswaIds as $mahasiswaId) {
-            $this->regenerateRekapNilaiForMahasiswa($kelasId, $mahasiswaId);
-        }
+        return redirect()->route('admin.kelases.index')->with('success', 'Kelas berhasil dihapus.');
     }
 
     /**
-     * Regenerate rekap_nilai untuk 1 mahasiswa di kelas
+     * LOGIK REKAP NILAI (OPTIMIZED)
      */
-    private function regenerateRekapNilaiForMahasiswa($kelasId, $mahasiswaId)
+    private function regenerateAllRekapNilaiKelas(Kelas $kelas)
     {
-        $kelas = Kelas::find($kelasId);
-        if (!$kelas) return;
+        // Ambil mahasiswa melalui relasi anggotaKelases
+        $mahasiswaIds = $kelas->anggotaKelases()->pluck('mahasiswa_id');
 
-        // 1. Semua pengumpulan mahasiswa di kelas ini
-        $semuaPengumpulan = Pengumpulan::whereHas('penilaian', fn($q) => $q->where('kelas_id', $kelasId))
+        foreach ($mahasiswaIds as $mahasiswaId) {
+            // Kita oper Objek $kelas langsung, bukan ID-nya saja
+            $this->regenerateRekapNilaiForMahasiswa($kelas, $mahasiswaId);
+        }
+    }
+
+    private function regenerateRekapNilaiForMahasiswa(Kelas $kelas, $mahasiswaId)
+    {
+        // 1. Ambil data pengumpulan & penilaian dalam satu tarikan untuk KELAS INI
+        $semuaPengumpulan = Pengumpulan::whereHas('penilaian', fn($q) => $q->where('kelas_id', $kelas->id))
             ->where('mahasiswa_id', $mahasiswaId)
             ->with('penilaian')
             ->get()
             ->groupBy('penilaian.kategori');
 
-        // 2. Total tugas di kelas
-        $totalTugasDiKelas = Penilaian::where('kelas_id', $kelasId)
-            ->where('kategori', 'tugas')
-            ->count();
-
-        // 3. Rata-rata tugas
-        $pengumpulanTugas = $semuaPengumpulan->get('tugas', collect());
-        $sumNilaiTugas = $pengumpulanTugas->sum('nilai_total');
+        // 2. Hitung Rata-rata Tugas
+        $totalTugasDiKelas = Penilaian::where('kelas_id', $kelas->id)->where('kategori', 'tugas')->count();
+        $sumNilaiTugas = $semuaPengumpulan->get('tugas', collect())->sum('nilai_total');
         $totalTugas = $totalTugasDiKelas > 0 ? round($sumNilaiTugas / $totalTugasDiKelas, 2) : 0;
 
-        // 4. UTS & UAS
+        // 3. Hitung Rata-rata UTS & UAS
         $totalUts = $this->hitungRataRataKategori($semuaPengumpulan, 'uts');
         $totalUas = $this->hitungRataRataKategori($semuaPengumpulan, 'uas');
 
-        // 5. Nilai akhir dengan persentase BARU
+        // 4. Hitung Nilai Akhir Angka
         $nilaiAkhir = round(
             ($totalTugas * $kelas->persentase_tugas / 100) +
                 ($totalUts * $kelas->persentase_uts / 100) +
@@ -273,29 +205,31 @@ class KelasController extends Controller
             2
         );
 
-        // 6. Update rekap_nilai
+        // 5. 🔥 SIMPAN/UPDATE UNIK PER KELAS
+        // Logic: Gunakan updateOrCreate dengan kombinasi mahasiswa_id DAN kelas_id.
+        // Hasil: Jika mahasiswa mengulang (beda kelas), sistem otomatis membuat baris baru.
         RekapNilai::updateOrCreate(
             [
                 'mahasiswa_id' => $mahasiswaId,
-                'kelas_id' => $kelasId
+                'kelas_id'     => $kelas->id, // Kunci utama: Unik per kelas
             ],
             [
-                'semester_id' => $kelas->semester_id,
-                'mata_kuliah_id' => $kelas->mata_kuliah_id,
-                'total_tugas' => $totalTugas,
-                'total_uts' => $totalUts,
-                'total_uas' => $totalUas,
+                'semester_id'       => $kelas->semester_id,
+                'mata_kuliah_id'    => $kelas->mata_kuliah_id,
+                'total_tugas'       => $totalTugas,
+                'total_uts'         => $totalUts,
+                'total_uas'         => $totalUas,
                 'nilai_akhir_angka' => $nilaiAkhir,
-                'nilai_huruf' => $this->konversiHuruf($nilaiAkhir),
-                'nilai_indeks' => $this->konversiIndeks($nilaiAkhir),
+                'nilai_huruf'       => $this->konversiHuruf($nilaiAkhir),
+                'nilai_indeks'      => $this->konversiIndeks($nilaiAkhir),
             ]
         );
     }
 
     private function hitungRataRataKategori($semuaPengumpulan, $kategori)
     {
-        $pengumpulanKategori = $semuaPengumpulan->get($kategori, collect());
-        return $pengumpulanKategori->isEmpty() ? 0 : round($pengumpulanKategori->avg('nilai_total'), 2);
+        $data = $semuaPengumpulan->get($kategori, collect());
+        return $data->isEmpty() ? 0 : round($data->avg('nilai_total'), 2);
     }
 
     private function konversiHuruf($nilai)

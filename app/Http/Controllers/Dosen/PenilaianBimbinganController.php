@@ -45,7 +45,7 @@ class PenilaianBimbinganController extends Controller
                 'mahasiswa.user:id,nama_lengkap,email',
                 'mahasiswa.jurusan:id,nama_jurusan',
                 'semester:id,nama_semester,status_aktif',
-                'mataKuliah:id,nama_mk,kode_mk,jenis_mk',
+                'mataKuliah:id,nama_mk,jenis_mk', // Diperbarui: Menghapus kode_mk
             ]);
 
         if ($semesterId) {
@@ -70,8 +70,7 @@ class PenilaianBimbinganController extends Controller
                             });
                     })
                     ->orWhereHas('mataKuliah', function ($mk) use ($q) {
-                        $mk->where('nama_mk', 'like', "%{$q}%")
-                            ->orWhere('kode_mk', 'like', "%{$q}%");
+                        $mk->where('nama_mk', 'like', "%{$q}%"); // Diperbarui: Menghapus kode_mk
                     });
             });
         }
@@ -91,9 +90,9 @@ class PenilaianBimbinganController extends Controller
 
             'mata_kuliah' => $b->mataKuliah ? [
                 'id' => $b->mataKuliah->id,
-                'kode_mk' => $b->mataKuliah->kode_mk,
                 'nama_mk' => $b->mataKuliah->nama_mk,
                 'jenis_mk' => $b->mataKuliah->jenis_mk,
+                // Diperbarui: Menghapus kode_mk
             ] : null,
 
             'mahasiswa' => $b->mahasiswa ? [
@@ -113,8 +112,7 @@ class PenilaianBimbinganController extends Controller
         $mataKuliahs = MataKuliah::query()
             ->where('jenis_mk', 'Spesial')
             ->orderBy('nama_mk')
-            ->get(['id', 'kode_mk', 'nama_mk', 'jenis_mk']);
-
+            ->get(['id', 'nama_mk', 'jenis_mk']); // Diperbarui: Menghapus kode_mk
 
         return Inertia::render('Dosen/PenilaianBimbingan/Index', [
             'bimbingans' => $bimbingans,
@@ -164,7 +162,11 @@ class PenilaianBimbinganController extends Controller
         $dosenId = $this->dosenId($request);
         abort_if($bimbingan->dosen_pembimbing_id !== $dosenId, 403);
 
-        $bimbingan->load(['mahasiswa.user:id,nama_lengkap,email', 'mataKuliah:id,nama_mk,kode_mk,jenis_mk', 'semester:id,nama_semester,status_aktif']);
+        $bimbingan->load([
+            'mahasiswa.user:id,nama_lengkap,email',
+            'mataKuliah:id,nama_mk,jenis_mk', // Diperbarui: Menghapus kode_mk
+            'semester:id,nama_semester,status_aktif'
+        ]);
 
         return Inertia::render('Dosen/PenilaianBimbingan/Edit', [
             'bimbingan' => [
@@ -182,8 +184,8 @@ class PenilaianBimbinganController extends Controller
                     'email' => $bimbingan->mahasiswa?->user?->email,
                 ],
                 'mata_kuliah' => [
-                    'kode_mk' => $bimbingan->mataKuliah?->kode_mk,
                     'nama_mk' => $bimbingan->mataKuliah?->nama_mk,
+                    // Diperbarui: Menghapus kode_mk
                 ],
                 'semester' => [
                     'nama_semester' => $bimbingan->semester?->nama_semester,

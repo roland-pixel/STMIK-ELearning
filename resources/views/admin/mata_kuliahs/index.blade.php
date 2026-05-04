@@ -21,16 +21,14 @@
                 <div class="flex flex-col gap-1.5 flex-1">
                     <label class="text-xs font-medium text-slate-500 ml-1">Pencarian</label>
                     <input type="text" name="q" value="{{ $q }}" placeholder="Cari kode atau nama..."
-                        class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm
-                               focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition" />
+                        class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition" />
                 </div>
 
                 {{-- Filter Jenis MK --}}
                 <div class="flex flex-col gap-1.5 w-full sm:w-40">
                     <label class="text-xs font-medium text-slate-500 ml-1">Jenis</label>
                     <select name="jenis" onchange="this.form.submit()"
-                        class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm
-                               focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition">
+                        class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition">
                         <option value="">Semua Jenis</option>
                         <option value="Umum" {{ request('jenis') == 'Umum' ? 'selected' : '' }}>Umum</option>
                         <option value="Spesial" {{ request('jenis') == 'Spesial' ? 'selected' : '' }}>Spesial</option>
@@ -41,8 +39,7 @@
                 <div class="flex flex-col gap-1.5 w-full sm:w-56">
                     <label class="text-xs font-medium text-slate-500 ml-1">Kategori</label>
                     <select name="kategori" onchange="this.form.submit()"
-                        class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm
-                               focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition">
+                        class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition">
                         <option value="">Semua Kategori</option>
                         @foreach (['KPP', 'KIT', 'KAB', 'KPB', 'KBB'] as $kat)
                             <option value="{{ $kat }}" {{ request('kategori') == $kat ? 'selected' : '' }}>
@@ -68,8 +65,7 @@
 
                 <div class="sm:ml-auto">
                     <a href="{{ route('admin.mata_kuliahs.create') }}"
-                        class="inline-flex items-center justify-center gap-2 rounded-xl bg-maroon-700 px-4 py-2 text-sm font-semibold text-white
-                               hover:bg-maroon-800 transition shadow-[0_10px_22px_rgba(127,29,29,0.18)] whitespace-nowrap h-[38px]">
+                        class="inline-flex items-center justify-center gap-2 rounded-xl bg-maroon-700 px-4 py-2 text-sm font-semibold text-white hover:bg-maroon-800 transition shadow-[0_10px_22px_rgba(127,29,29,0.18)] whitespace-nowrap h-[38px]">
                         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none">
                             <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
                         </svg>
@@ -89,7 +85,7 @@
                                 class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 w-16">
                                 #</th>
                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                                Kode</th>
+                                Kode (Per Jurusan)</th>
                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                                 Nama</th>
                             <th
@@ -110,15 +106,23 @@
                                 <td class="px-4 py-3 text-sm">
                                     {{ ($mataKuliahs->currentPage() - 1) * $mataKuliahs->perPage() + $loop->iteration }}
                                 </td>
-                                <td class="px-4 py-3 text-sm font-semibold text-slate-900 whitespace-nowrap">
-                                    {{ $item->kode_mk }}
-                                </td>
+
+                                {{-- PERUBAHAN: Menampilkan Kode dari Tabel Kurikulum --}}
                                 <td class="px-4 py-3 text-sm">
-                                    {{ $item->nama_mk }}
+                                    <div class="flex flex-wrap gap-1">
+                                        @forelse($item->kurikulums as $k)
+                                            <span
+                                                class="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 border border-slate-200">
+                                                {{ $k->jurusan->kode_jurusan }}: {{ $k->kode_mk_jurusan }}
+                                            </span>
+                                        @empty
+                                            <span class="text-[10px] text-slate-400 italic">Belum ada kode</span>
+                                        @endforelse
+                                    </div>
                                 </td>
-                                <td class="px-4 py-3 text-sm whitespace-nowrap">
-                                    {{ $item->sks }}
-                                </td>
+
+                                <td class="px-4 py-3 text-sm">{{ $item->nama_mk }}</td>
+                                <td class="px-4 py-3 text-sm">{{ $item->sks }}</td>
                                 <td class="px-4 py-3">
                                     <span
                                         class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600 ring-1 ring-slate-200 uppercase">
@@ -140,7 +144,6 @@
                                                     d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                             </svg>
                                         </a>
-
                                         <button type="button"
                                             onclick="document.getElementById('hapus-mk-{{ $item->id }}').showModal()"
                                             class="p-1.5 rounded-lg border border-rose-100 text-rose-500 hover:bg-rose-50 transition">
@@ -151,14 +154,15 @@
                                         </button>
                                     </div>
 
-                                    {{-- Modal Hapus (Tetap sama seperti sebelumnya) --}}
+                                    {{-- Modal Hapus --}}
                                     <dialog id="hapus-mk-{{ $item->id }}"
                                         class="rounded-2xl p-0 backdrop:bg-black/40 overflow-hidden shadow-2xl">
                                         <div class="w-full max-w-sm bg-white p-6 text-left whitespace-normal">
                                             <h3 class="text-lg font-bold text-slate-900">Konfirmasi Hapus</h3>
-                                            <p class="mt-2 text-sm text-slate-600">Yakin ingin menghapus MK
-                                                <strong>{{ $item->nama_mk }}</strong>? Data yang dihapus tidak bisa
-                                                dikembalikan.</p>
+                                            <p class="mt-2 text-sm text-slate-600">Yakin ingin menghapus
+                                                <strong>{{ $item->nama_mk }}</strong>? Data kurikulum terkait juga akan
+                                                dihapus.
+                                            </p>
                                             <div class="mt-6 flex justify-end gap-3">
                                                 <button type="button"
                                                     onclick="document.getElementById('hapus-mk-{{ $item->id }}').close()"
@@ -177,15 +181,8 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="px-4 py-12 text-center">
-                                    <div class="flex flex-col items-center gap-2 text-slate-400">
-                                        <svg class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                                d="M9.172 9.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        <span class="text-sm">Tidak menemukan mata kuliah yang dicari.</span>
-                                    </div>
-                                </td>
+                                <td colspan="7" class="px-4 py-12 text-center text-slate-400 text-sm italic">Tidak ada
+                                    mata kuliah.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -193,9 +190,6 @@
             </div>
         </div>
 
-        <div class="mt-4">
-            {{ $mataKuliahs->appends(request()->query())->links() }}
-        </div>
+        <div class="mt-4">{{ $mataKuliahs->appends(request()->query())->links() }}</div>
     </div>
 @endsection
-    

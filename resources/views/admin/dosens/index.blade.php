@@ -13,21 +13,40 @@
         @endif
 
         {{-- Toolbar --}}
+        {{-- Toolbar --}}
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <form method="GET" class="flex gap-2 w-full sm:w-auto">
+            <form method="GET" class="flex flex-wrap gap-2 w-full sm:w-auto">
                 <input type="text" name="q" value="{{ $q }}" placeholder="Cari nama/email/nip..."
-                    class="w-full sm:w-80 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm
-                           focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition" />
+                    class="w-full sm:w-64 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm
+                   focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition" />
+
+                <select name="homebase"
+                    class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700
+                   focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition">
+                    <option value="">Semua Homebase</option>
+                    @foreach ($homebases as $hb)
+                        <option value="{{ $hb }}" {{ $homebase === $hb ? 'selected' : '' }}>
+                            {{ $hb }}
+                        </option>
+                    @endforeach
+                </select>
 
                 <button
                     class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition">
                     Cari
                 </button>
+
+                @if ($q || $homebase)
+                    <a href="{{ route('admin.dosens.index') }}"
+                        class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition">
+                        Reset
+                    </a>
+                @endif
             </form>
 
             <a href="{{ route('admin.dosens.create') }}"
                 class="inline-flex items-center justify-center gap-2 rounded-xl bg-maroon-700 px-4 py-2 text-sm font-semibold text-white
-                       hover:bg-maroon-800 transition shadow-[0_10px_22px_rgba(127,29,29,0.18)]">
+               hover:bg-maroon-800 transition shadow-[0_10px_22px_rgba(127,29,29,0.18)]">
                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none">
                     <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
                 </svg>

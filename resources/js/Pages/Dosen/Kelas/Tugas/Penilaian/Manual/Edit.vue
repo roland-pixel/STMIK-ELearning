@@ -22,7 +22,8 @@ const form = useForm({
 
 // ✅ CEK APAKAH KATEGORI DISABLED
 const isKategoriDisabled = (kategori) => {
-    return props.usedCategories.includes(kategori);
+    // Jika kategori tersebut ada di usedCategories DAN bukan kategori asli penilaian ini, maka disable
+    return props.usedCategories.includes(kategori) && kategori !== props.penilaian?.kategori;
 };
 
 // ✅ REACTIVE NILAI MAHASISWA
@@ -199,7 +200,7 @@ const submit = () => {
                                 Dari <span class="font-bold bg-amber-200 px-1 rounded">{{
                                     props.penilaian?.kategori?.toUpperCase() }}</span>
                                 menjadi <span class="font-bold bg-blue-200 px-1 rounded">{{ form.kategori?.toUpperCase()
-                                }}</span>
+                                    }}</span>
                             </div>
                         </div>
 

@@ -218,7 +218,7 @@
             @forelse($khs_data as $index => $item)
                 <tr>
                     <td>{{ $index + 1 }}</td>
-                    <td>{{ $item->kode_mk }}</td>
+                    <td>{{ $item->kode_tampil }}</td>
                     <td class="text-left">
                         {{ $item->nama_mk }}
                         @if ($item->jenis_mk === 'Spesial')

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\BimbinganController;
+use App\Http\Controllers\Admin\CumlaudeController;
 use App\Http\Controllers\Admin\DosenController;
 use App\Http\Controllers\Admin\InputNilaiManualController;
 use App\Http\Controllers\Admin\JurusanController;
@@ -23,6 +24,7 @@ use App\Http\Controllers\Dosen\PenilaianBimbinganController;
 use App\Http\Controllers\Dosen\PenilaianManualController;
 use App\Http\Controllers\Dosen\PenilaianOnlineController;
 use App\Http\Controllers\Dosen\ProfileController as DosenProfileController;
+use App\Http\Controllers\Mahasiswa\AnggotaKelasController;
 use App\Http\Controllers\Mahasiswa\DashboardController as MahasiswaDashboardController;
 use App\Http\Controllers\Mahasiswa\ProfileController as MahasiswaProfileController;
 use App\Http\Controllers\Mahasiswa\KelasDetailController as MahasiswaKelasDetailController;
@@ -93,6 +95,8 @@ Route::middleware(['auth', 'role:admin'])
             Route::get('/', [KelolaKHSController::class, 'index'])->name('index');
             Route::get('/preview', [KelolaKHSController::class, 'previewKHS'])->name('preview');
             Route::post('/cetak', [KelolaKHSController::class, 'cetakKHS'])->name('cetak');
+            Route::get('/mahasiswa-by-jurusan', [KelolaKHSController::class, 'getMahasiswaByJurusan'])->name('mahasiswa-by-jurusan');
+            Route::get('/semester-by-mahasiswa', [KelolaKHSController::class, 'getSemesterByMahasiswa'])->name('semester-by-mahasiswa');
         });
 
         Route::prefix('transkrip')->name('transkrip.')->group(function () {
@@ -109,6 +113,8 @@ Route::middleware(['auth', 'role:admin'])
 
         // Activity Logs (cukup admin)
         Route::get('activity-logs', [ActivityLogController::class, 'index'])->name('activity_logs.index');
+
+        Route::get('cumlaude', [CumlaudeController::class, 'index'])->name('cumlaude.index');
     });
 
 /*
@@ -201,6 +207,9 @@ Route::middleware(['auth', 'role:mahasiswa'])
 
         Route::post('kelas/join', [JoinKelasController::class, 'store'])
             ->name('kelas.join');
+
+        Route::delete('kelas/{id}/leave', [AnggotaKelasController::class, 'destroy'])
+            ->name('kelas.leave');
 
         Route::prefix('profile')->name('profile.')->group(function () {
             Route::get('/', [MahasiswaProfileController::class, 'edit'])->name('edit');

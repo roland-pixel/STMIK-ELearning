@@ -10,7 +10,6 @@ class MataKuliah extends Model
     use HasFactory;
 
     protected $fillable = [
-        'kode_mk',
         'nama_mk',
         'sks',
         'jenis_mk',
@@ -20,5 +19,10 @@ class MataKuliah extends Model
     public function kelases()
     {
         return $this->hasMany(Kelas::class);
+    }
+
+    public function kurikulums()
+    {
+        return $this->hasMany(Kurikulum::class);
     }
 }

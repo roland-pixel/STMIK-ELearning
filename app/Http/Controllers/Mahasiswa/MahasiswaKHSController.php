@@ -16,23 +16,28 @@ class MahasiswaKHSController extends Controller
 {
     public function index()
     {
-        // PROTEKSI MANUAL
         if (!Auth::check() || Auth::user()->peran !== 'mahasiswa') {
             abort(403, 'Akses ditolak.');
         }
 
         $mahasiswa = Auth::user()->mahasiswa;
-
         if (!$mahasiswa) {
             return Inertia::render('Mahasiswa/KHS/Index', [
                 'error' => 'Data mahasiswa tidak ditemukan.'
             ]);
         }
 
-        $semesters = Semester::orderBy('nama_semester', 'desc')
+        // PERBAIKAN: Hanya tampilkan semester di mana mahasiswa 
+        // TERDAFTAR di setidaknya satu kelas atau memiliki rekap nilai.
+        $semesters = Semester::where(function ($query) use ($mahasiswa) {
+            $query->whereHas('kelases.anggotaKelases', fn($q) => $q->where('mahasiswa_id', $mahasiswa->id))
+                ->orWhereRaw("id IN (SELECT semester_id FROM rekap_nilais WHERE mahasiswa_id = ?)", [$mahasiswa->id])
+                ->orWhereRaw("id IN (SELECT semester_id FROM bimbingans WHERE mahasiswa_id = ? AND status = 'approved')", [$mahasiswa->id]);
+        })
+            ->orderBy('nama_semester', 'desc')
             ->get()
             ->map(function ($semester) use ($mahasiswa) {
-                // Check KHS di kedua tabel (Umum & Spesial)
+                // Cek data KHS untuk tampilan UI
                 $hasUmum = DB::table('rekap_nilais')
                     ->where('mahasiswa_id', $mahasiswa->id)
                     ->where('semester_id', $semester->id)
@@ -60,12 +65,20 @@ class MahasiswaKHSController extends Controller
      */
     private function getCombinedKHSData($mahasiswaId, $semesterId)
     {
+        $mahasiswa = \App\Models\Mahasiswa::find($mahasiswaId);
+        $jurusanId = $mahasiswa->jurusan_id;
+
+        // 1. Matkul Umum (Menggunakan leftJoin ke kurikulums)
         $umum = DB::table('rekap_nilais as r')
             ->join('mata_kuliahs as mk', 'r.mata_kuliah_id', '=', 'mk.id')
+            ->leftJoin('kurikulums as k', function ($join) use ($jurusanId) {
+                $join->on('mk.id', '=', 'k.mata_kuliah_id')
+                    ->where('k.jurusan_id', '=', $jurusanId);
+            })
             ->where('r.mahasiswa_id', $mahasiswaId)
             ->where('r.semester_id', $semesterId)
             ->select(
-                'mk.kode_mk',
+                DB::raw('COALESCE(k.kode_mk_jurusan, "N/A") as kode_tampil'), // Menggantikan mk.kode_mk agar konsisten dengan admin
                 'mk.nama_mk',
                 'mk.sks',
                 'mk.jenis_mk',
@@ -77,13 +90,18 @@ class MahasiswaKHSController extends Controller
                 'r.total_uas'
             );
 
+        // 2. Matkul Spesial (Menggunakan leftJoin ke kurikulums)
         $spesial = DB::table('bimbingans as b')
             ->join('mata_kuliahs as mk', 'b.mata_kuliah_id', '=', 'mk.id')
+            ->leftJoin('kurikulums as k', function ($join) use ($jurusanId) {
+                $join->on('mk.id', '=', 'k.mata_kuliah_id')
+                    ->where('k.jurusan_id', '=', $jurusanId);
+            })
             ->where('b.mahasiswa_id', $mahasiswaId)
             ->where('b.semester_id', $semesterId)
             ->where('b.status', 'approved')
             ->select(
-                'mk.kode_mk',
+                DB::raw('COALESCE(k.kode_mk_jurusan, "N/A") as kode_tampil'), // Menggantikan mk.kode_mk agar konsisten dengan admin
                 'mk.nama_mk',
                 'mk.sks',
                 'mk.jenis_mk',
@@ -95,13 +113,17 @@ class MahasiswaKHSController extends Controller
                 DB::raw("0 as total_uas")
             );
 
-        return $umum->union($spesial)->orderBy('kode_mk')->get()->map(function ($item) {
-            if ($item->jenis_mk === 'Spesial') {
-                $item->nilai_huruf = $this->konversiHuruf($item->nilai_akhir_angka);
-                $item->nilai_indeks = $this->konversiIndeks($item->nilai_akhir_angka);
-            }
-            return $item;
-        });
+        // 3. Gabungkan dan urutkan berdasarkan nama_mk
+        return $umum->union($spesial)
+            ->orderBy('nama_mk', 'asc')
+            ->get()
+            ->map(function ($item) {
+                if ($item->jenis_mk === 'Spesial') {
+                    $item->nilai_huruf = $this->konversiHuruf($item->nilai_akhir_angka);
+                    $item->nilai_indeks = $this->konversiIndeks($item->nilai_akhir_angka);
+                }
+                return $item;
+            });
     }
 
     private function konversiHuruf($nilai)
@@ -141,7 +163,7 @@ class MahasiswaKHSController extends Controller
         $mahasiswa = Auth::user()->mahasiswa;
         $semester = Semester::findOrFail($request->semester_id);
 
-        $khsData = $this->getCombinedKHSData($mahasiswa->id, $request->semester_id);
+        $khsData = $this->getCombinedKHSData($mahasiswa_id = $mahasiswa->id, $semester_id = $request->semester_id); // Disesuaikan menggunakan parameter
 
         if ($khsData->isEmpty()) {
             return back()->with('warning', 'Belum ada data nilai untuk semester ini.');
@@ -181,7 +203,7 @@ class MahasiswaKHSController extends Controller
         $data = [
             'mahasiswa' => $mahasiswa->load('user', 'jurusan'),
             'semester' => $semester,
-            'khs_data' => $khsData,
+            'khs_data' => $khsData, // Perhatikan kunci array ini konsisten dengan cetak pada admin
             'ipk' => $ipk,
             'total_sks' => $totalSKS,
             'tanggal_cetak' => now()->translatedFormat('d F Y')

@@ -22,9 +22,6 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call([
-            MataKuliahSeeder::class,
-        ]);
         User::create([
             'uuid' => Str::uuid(),
             'nama_lengkap' => 'Evelyn Chevalier',
@@ -55,32 +52,70 @@ class DatabaseSeeder extends Seeder
             'jenjang' => 'S1',
         ]);
 
+        Jurusan::create([
+            'kode_jurusan' => 'TI',
+            'nama_jurusan' => 'Teknik Informatika',
+            'jenjang' => 'S1',
+        ]);
+
+        $this->call([
+            MataKuliahSeeder::class,
+        ]);
+
+        Semester::create([
+            'nama_semester' => 'Ganjil 2022/2023',
+            'status_aktif' => 'active',
+            'tanggal_mulai' => '2022-11-30',
+            'tanggal_selesai' => '2023-05-31',
+        ]);
+
+        Semester::create([
+            'nama_semester' => 'Genap 2022/2023',
+            'status_aktif' => 'inactive',
+            'tanggal_mulai' => '2023-05-31',
+            'tanggal_selesai' => '2023-11-30',
+        ]);
+
+        Semester::create([
+            'nama_semester' => 'Ganjil 2023/2024',
+            'status_aktif' => 'inactive',
+            'tanggal_mulai' => '2023-11-30',
+            'tanggal_selesai' => '2024-05-31',
+        ]);
+
+        Semester::create([
+            'nama_semester' => 'Genap 2023/2024',
+            'status_aktif' => 'inactive',
+            'tanggal_mulai' => '2024-05-31',
+            'tanggal_selesai' => '2024-11-30',
+        ]);
+
+        Semester::create([
+            'nama_semester' => 'Ganjil 2024/2025',
+            'status_aktif' => 'inactive',
+            'tanggal_mulai' => '2024-11-30',
+            'tanggal_selesai' => '2025-05-31',
+        ]);
+
+        Semester::create([
+            'nama_semester' => 'Genap 2024/2025',
+            'status_aktif' => 'inactive',
+            'tanggal_mulai' => '2025-05-31',
+            'tanggal_selesai' => '2025-11-30',
+        ]);
+
         Semester::create([
             'nama_semester' => 'Ganjil 2025/2026',
-            'status_aktif' => 'active',
-            'tanggal_mulai' => '2025-09-01',
-            'tanggal_selesai' => '2026-01-31',
+            'status_aktif' => 'inactive',
+            'tanggal_mulai' => '2025-11-30',
+            'tanggal_selesai' => '2026-05-31',
         ]);
 
         Semester::create([
             'nama_semester' => 'Genap 2025/2026',
             'status_aktif' => 'inactive',
-            'tanggal_mulai' => '2026-02-01',
-            'tanggal_selesai' => '2026-06-30',
-        ]);
-
-        MataKuliah::create([
-            'kode_mk' => 'MK001',
-            'nama_mk' => 'Pemrograman Dasar',
-            'sks' => 4,
-            'jenis_mk' => 'Umum',
-        ]);
-
-        MataKuliah::create([
-            'kode_mk' => 'MK002',
-            'nama_mk' => 'Pra Skripsi',
-            'sks' => 6,
-            'jenis_mk' => 'Spesial',
+            'tanggal_mulai' => '2026-05-31',
+            'tanggal_selesai' => '2026-11-30',
         ]);
 
         $userDosen = User::where('peran', 'dosen')->first();

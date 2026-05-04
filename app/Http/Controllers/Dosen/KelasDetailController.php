@@ -47,7 +47,7 @@ class KelasDetailController extends Controller
         // Eager load
         $kelas->load([
             'dosen.user:id,nama_lengkap,email,avatar',
-            'mataKuliah:id,kode_mk,nama_mk,sks,jenis_mk',
+            'mataKuliah:id,nama_mk,sks,jenis_mk',
             'semester:id,nama_semester,status_aktif,tanggal_mulai,tanggal_selesai',
         ]);
 
@@ -187,7 +187,6 @@ class KelasDetailController extends Controller
                     'email' => $kelas->dosen?->user?->email,
                 ],
                 'mata_kuliah' => [
-                    'kode_mk' => $kelas->mataKuliah?->kode_mk,
                     'nama_mk' => $kelas->mataKuliah?->nama_mk,
                     'sks' => $kelas->mataKuliah?->sks,
                     'jenis_mk' => $kelas->mataKuliah?->jenis_mk,

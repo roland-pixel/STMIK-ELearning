@@ -213,43 +213,35 @@ class PengerjaanPenilaianController extends Controller
     }
 
     /**
-     * Regenerate rekap_nilais ✅ SAMA PERSIS
-     */
-    /**
-     * Regenerate rekap_nilais ✅ SUDAH RATA‑RATA BERDASARKAN JUMLAH TUGAS DI KELAS
+     * Regenerate rekap_nilais (OPTIMIZED & KRONOLOGIS)
+     * Tetap konsisten dengan aturan: 1 Kelas = 1 Record Nilai
      */
     private function regenerateRekapNilai($pengumpulanId)
     {
         $pengumpulan = Pengumpulan::with(['penilaian.kelas', 'mahasiswa'])->find($pengumpulanId);
-        $mahasiswaId = $pengumpulan->mahasiswa_id;
-        $kelasId = $pengumpulan->penilaian->kelas_id;
-        $kelas = Kelas::find($kelasId);
+        if (!$pengumpulan) return;
 
-        // 1. Semua pengumpulan mahasiswa di kelas ini
+        $mahasiswaId = $pengumpulan->mahasiswa_id;
+        $kelasId     = $pengumpulan->penilaian->kelas_id;
+        $kelas       = $pengumpulan->penilaian->kelas;
+        if (!$kelas) return;
+
+        // 1. Ambil data pengumpulan mahasiswa di KELAS INI
         $semuaPengumpulan = Pengumpulan::whereHas('penilaian', fn($q) => $q->where('kelas_id', $kelasId))
             ->where('mahasiswa_id', $mahasiswaId)
+            ->with('penilaian')
             ->get()
             ->groupBy('penilaian.kategori');
 
-        // 2. Hitung jumlah total tugas di kelas (bukan yang dikerjakan)
-        $totalTugasDiKelas = Penilaian::where('kelas_id', $kelasId)
-            ->where('kategori', 'tugas')
-            ->count();
+        // 2. Hitung komponen nilai
+        $totalTugasDiKelas = Penilaian::where('kelas_id', $kelasId)->where('kategori', 'tugas')->count();
+        $sumNilaiTugas = $semuaPengumpulan->get('tugas', collect())->sum('nilai_total');
+        $totalTugas = $totalTugasDiKelas > 0 ? round($sumNilaiTugas / $totalTugasDiKelas, 2) : 0;
 
-        // 3. Hitung total nilai tugas yang sudah dikerjakan
-        $pengumpulanTugas = $semuaPengumpulan->get('tugas', collect());
-        $sumNilaiTugas = $pengumpulanTugas->sum('nilai_total'); // misal 100
-
-        // 4. total_tugas = rata‑rata dari semua tugas kelas (termasuk yang 0)
-        $totalTugas = $totalTugasDiKelas > 0
-            ? $sumNilaiTugas / $totalTugasDiKelas   // (100 + 0 + 0) / 3 → 33.33
-            : 0;
-
-        // 5. UTS & UAS tetap 1 item (0 kalau kosong)
         $totalUts = $this->hitungRataRataKategori($semuaPengumpulan, 'uts');
         $totalUas = $this->hitungRataRataKategori($semuaPengumpulan, 'uas');
 
-        // 6. Hitung nilai akhir
+        // 3. Hitung Nilai Akhir
         $nilaiAkhir = round(
             ($totalTugas * $kelas->persentase_tugas / 100) +
                 ($totalUts * $kelas->persentase_uts / 100) +
@@ -257,18 +249,26 @@ class PengerjaanPenilaianController extends Controller
             2
         );
 
+        $payload = [
+            'semester_id'       => $kelas->semester_id,
+            'mata_kuliah_id'    => $kelas->mata_kuliah_id,
+            'total_tugas'       => $totalTugas,
+            'total_uts'         => $totalUts,
+            'total_uas'         => $totalUas,
+            'nilai_akhir_angka' => $nilaiAkhir,
+            'nilai_huruf'       => $this->konversiHuruf($nilaiAkhir),
+            'nilai_indeks'      => $this->konversiIndeks($nilaiAkhir),
+        ];
+
+        // 4. 🔥 SIMPAN/UPDATE UNIK PER KELAS
+        // Menggunakan updateOrCreate agar setiap kelas memiliki record nilai sendiri.
+        // Ini memastikan riwayat nilai mahasiswa tetap terjaga per semester/kelas.
         RekapNilai::updateOrCreate(
-            ['mahasiswa_id' => $mahasiswaId, 'kelas_id' => $kelasId],
             [
-                'semester_id' => $kelas->semester_id,
-                'mata_kuliah_id' => $kelas->mata_kuliah_id,
-                'total_tugas' => $totalTugas,
-                'total_uts' => $totalUts,
-                'total_uas' => $totalUas,
-                'nilai_akhir_angka' => $nilaiAkhir,
-                'nilai_huruf' => $this->konversiHuruf($nilaiAkhir),
-                'nilai_indeks' => $this->konversiIndeks($nilaiAkhir),
-            ]
+                'mahasiswa_id' => $mahasiswaId,
+                'kelas_id'     => $kelasId
+            ],
+            $payload
         );
     }
 
