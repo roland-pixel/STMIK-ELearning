@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('pengumpulan_id')->constrained('pengumpulans')->onDelete('cascade');
             $table->foreignId('pertanyaan_id')->constrained('pertanyaans')->onDelete('cascade');
-            $table->foreignId('opsi_jawaban_id')->nullable()->constrained('opsi_jawabans')->onDelete('cascade');
+            $table->foreignId('opsi_jawaban_id')->nullable()->constrained('opsi_jawabans')->nullOnDelete();
             $table->text('text_jawaban')->nullable();
             $table->string('file_jawaban')->nullable();
             $table->decimal('nilai_per_soal', 5, 2)->nullable();

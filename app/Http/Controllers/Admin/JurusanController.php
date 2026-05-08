@@ -75,10 +75,20 @@ class JurusanController extends Controller
 
     public function destroy(Jurusan $jurusan)
     {
-        $jurusan->delete();
+        try {
+            $jurusan->delete();
 
-        return redirect()
-            ->route('admin.jurusans.index')
-            ->with('success', 'Jurusan berhasil dihapus.');
+            return redirect()
+                ->route('admin.jurusans.index')
+                ->with('success', 'Jurusan berhasil dihapus.');
+        } catch (\Illuminate\Database\QueryException $e) {
+
+            return redirect()
+                ->route('admin.jurusans.index')
+                ->with(
+                    'error',
+                    'Jurusan tidak bisa dihapus karena masih digunakan pada data akademik.'
+                );
+        }
     }
 }

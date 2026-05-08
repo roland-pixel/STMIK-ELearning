@@ -7,8 +7,14 @@
 @section('content')
     <div class="space-y-4 max-w-full">
         @if (session('success'))
-            <div class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">
+            <div class="mb-4 rounded-lg bg-green-100 px-4 py-3 text-green-700">
                 {{ session('success') }}
+            </div>
+        @endif
+
+        @if (session('error'))
+            <div class="mb-4 rounded-lg bg-red-100 px-4 py-3 text-red-700">
+                {{ session('error') }}
             </div>
         @endif
 

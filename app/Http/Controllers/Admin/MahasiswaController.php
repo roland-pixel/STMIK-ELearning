@@ -173,15 +173,25 @@ class MahasiswaController extends Controller
 
     public function destroy(Mahasiswa $mahasiswa)
     {
-        // hapus user, mahasiswa ikut kehapus (cascade)
-        $user = $mahasiswa->user;
+        try {
+            // hapus user, mahasiswa ikut kehapus (cascade)
+            $user = $mahasiswa->user;
 
-        DB::transaction(function () use ($user) {
-            $user->delete();
-        });
+            DB::transaction(function () use ($user) {
+                $user->delete();
+            });
 
-        return redirect()
-            ->route('admin.mahasiswas.index')
-            ->with('success', 'Mahasiswa berhasil dihapus.');
+            return redirect()
+                ->route('admin.mahasiswas.index')
+                ->with('success', 'Mahasiswa berhasil dihapus.');
+        } catch (\Illuminate\Database\QueryException $e) {
+
+            return redirect()
+                ->route('admin.mahasiswas.index')
+                ->with(
+                    'error',
+                    'Mahasiswa tidak bisa dihapus karena masih digunakan pada data akademik.'
+                );
+        }
     }
 }

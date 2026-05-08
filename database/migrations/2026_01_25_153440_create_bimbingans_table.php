@@ -15,10 +15,10 @@ return new class extends Migration
         Schema::create('bimbingans', function (Blueprint $table) {
             $table->id();
             $table->uuid('uuid')->unique();
-            $table->foreignId('semester_id')->constrained('semesters')->onDelete('cascade');
-            $table->foreignId('mahasiswa_id')->constrained('mahasiswas')->onDelete('cascade');
-            $table->foreignId('dosen_pembimbing_id')->constrained('dosens')->onDelete('cascade');
-            $table->foreignId('mata_kuliah_id')->constrained('mata_kuliahs')->onDelete('cascade');
+            $table->foreignId('semester_id')->constrained('semesters')->restrictOnDelete();
+            $table->foreignId('mahasiswa_id')->constrained('mahasiswas')->restrictOnDelete();
+            $table->foreignId('dosen_pembimbing_id')->constrained('dosens')->restrictOnDelete();
+            $table->foreignId('mata_kuliah_id')->constrained('mata_kuliahs')->restrictOnDelete();
             $table->string('judul_penelitian')->nullable();
             $table->decimal('nilai_angka', 5, 2)->nullable();
             $table->enum('status', ['pending', 'approved'])->default('pending');

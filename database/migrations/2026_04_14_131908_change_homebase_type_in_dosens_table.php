@@ -12,10 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('dosens', function (Blueprint $table) {
-            Schema::table('dosens', function (Blueprint $table) {
-                // Kita ubah dari enum ke string agar fleksibel
-                $table->string('homebase')->nullable()->change();
-            });
+            // Kita ubah dari enum ke string agar fleksibel
+            $table->string('homebase')->nullable()->change();
         });
     }
 

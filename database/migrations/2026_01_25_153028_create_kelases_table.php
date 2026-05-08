@@ -14,9 +14,9 @@ return new class extends Migration
         Schema::create('kelases', function (Blueprint $table) {
             $table->id();
             $table->uuid('uuid')->unique();
-            $table->foreignId('dosen_id')->constrained('dosens')->onDelete('cascade');
-            $table->foreignId('mata_kuliah_id')->constrained('mata_kuliahs')->onDelete('cascade');
-            $table->foreignId('semester_id')->constrained('semesters')->onDelete('cascade');
+            $table->foreignId('dosen_id')->constrained('dosens')->restrictOnDelete();
+            $table->foreignId('mata_kuliah_id')->constrained('mata_kuliahs')->restrictOnDelete();
+            $table->foreignId('semester_id')->constrained('semesters')->restrictOnDelete();
             $table->string('nama_kelas');
             $table->string('kode_gabung')->unique();
             $table->string('deskripsi')->nullable();

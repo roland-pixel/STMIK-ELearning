@@ -16,7 +16,7 @@ return new class extends Migration
             $table->id();
             $table->uuid('uuid')->unique();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('jurusan_id')->constrained('jurusans')->onDelete('cascade');
+            $table->foreignId('jurusan_id')->constrained('jurusans')->restrictOnDelete();
             $table->string('nim')->unique();
             $table->year('angkatan');
             $table->enum('status', ['aktif', 'lulus'])->default('aktif');

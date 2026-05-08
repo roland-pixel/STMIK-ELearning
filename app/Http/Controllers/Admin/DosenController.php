@@ -141,16 +141,26 @@ class DosenController extends Controller
 
     public function destroy(Dosen $dosen)
     {
-        // Karena dosens.user_id constrained cascade, kalau user dihapus dosen ikut terhapus.
-        // Lebih aman: hapus user saja.
-        $user = $dosen->user;
+        try {
+            // Karena dosens.user_id constrained cascade, kalau user dihapus dosen ikut terhapus.
+            // Lebih aman: hapus user saja.
+            $user = $dosen->user;
 
-        DB::transaction(function () use ($user) {
-            $user->delete();
-        });
+            DB::transaction(function () use ($user) {
+                $user->delete();
+            });
 
-        return redirect()
-            ->route('admin.dosens.index')
-            ->with('success', 'Dosen berhasil dihapus.');
+            return redirect()
+                ->route('admin.dosens.index')
+                ->with('success', 'Dosen berhasil dihapus.');
+        } catch (\Illuminate\Database\QueryException $e) {
+
+            return redirect()
+                ->route('admin.dosens.index')
+                ->with(
+                    'error',
+                    'Dosen tidak bisa dihapus karena masih digunakan pada data akademik.'
+                );
+        }
     }
 }

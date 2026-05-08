@@ -89,6 +89,11 @@ Route::middleware(['auth', 'role:admin'])
         Route::resource('kelases', AdminKelasController::class)
             ->except(['show']);
 
+        Route::post(
+            'kelases/{kelase}/duplicate',
+            [AdminKelasController::class, 'duplicate']
+        )->name('kelases.duplicate');
+
         Route::prefix('input-nilai-manual')->name('input_nilai_manual.')->group(function () {
             Route::get('/', [InputNilaiManualController::class, 'index'])->name('index');
             Route::get('/create/{kelas_id}', [InputNilaiManualController::class, 'create'])->name('create');

@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('penilaians', function (Blueprint $table) {
             $table->id();
             $table->uuid('uuid')->unique();
-            $table->foreignId('kelas_id')->constrained('kelases')->onDelete('cascade');
+            $table->foreignId('kelas_id')->constrained('kelases')->restrictOnDelete();
             $table->string('judul');
             $table->text('instruksi')->nullable();
             $table->enum('kategori', ['tugas', 'uts', 'uas'])->default('tugas');

@@ -14,8 +14,8 @@ return new class extends Migration
         Schema::create('pengumpulans', function (Blueprint $table) {
             $table->id();
             $table->uuid('uuid')->unique();
-            $table->foreignId('penilaian_id')->constrained('penilaians')->onDelete('cascade');
-            $table->foreignId('mahasiswa_id')->constrained('mahasiswas')->onDelete('cascade');
+            $table->foreignId('penilaian_id')->constrained('penilaians')->restrictOnDelete();
+            $table->foreignId('mahasiswa_id')->constrained('mahasiswas')->restrictOnDelete();
             $table->dateTime('waktu_mulai');
             $table->dateTime('waktu_selesai')->nullable();
             $table->decimal('nilai_total', 5, 2)->default(0);

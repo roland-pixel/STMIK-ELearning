@@ -80,10 +80,20 @@ class SemesterController extends Controller
 
     public function destroy(Semester $semester)
     {
-        $semester->delete();
+        try {
+            $semester->delete();
 
-        return redirect()
-            ->route('admin.semesters.index')
-            ->with('success', 'Semester berhasil dihapus.');
+            return redirect()
+                ->route('admin.semesters.index')
+                ->with('success', 'Semester berhasil dihapus.');
+        } catch (\Illuminate\Database\QueryException $e) {
+
+            return redirect()
+                ->route('admin.semesters.index')
+                ->with(
+                    'error',
+                    'Semester tidak bisa dihapus karena masih digunakan pada data akademik.'
+                );
+        }
     }
 }

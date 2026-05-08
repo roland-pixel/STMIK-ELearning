@@ -147,22 +147,78 @@ class KelasController extends Controller
         }
     }
 
-    public function destroy(Kelas $kelas)
+    public function duplicate(Kelas $kelase)
     {
-        // 1. Cek apakah ada data anak (Mahasiswa/Anggota, Materi, Penilaian)
-        $hasMahasiswa = $kelas->anggotaKelases()->exists();
-        $hasMateri = $kelas->materis()->exists();
-        $hasPenilaian = $kelas->penilaians()->exists();
+        $hasMahasiswa = $kelase->anggotaKelases()->exists();
+        $hasMateri = $kelase->materis()->exists();
+        $hasPenilaian = $kelase->penilaians()->exists();
 
-        // 2. Jika salah satu ada, larang penghapusan
         if ($hasMahasiswa || $hasMateri || $hasPenilaian) {
-            return back()->with('error', 'Kelas tidak bisa dihapus karena sudah memiliki data mahasiswa, materi, atau penilaian.');
+            return back()->with(
+                'error',
+                'Hanya kelas kosong yang bisa dicopy.'
+            );
         }
 
-        // 3. Jika aman, lakukan hapus
-        $kelas->delete();
+        $newKelas = $kelase->replicate([
+            'uuid',
+            'kode_gabung',
+            'created_at',
+            'updated_at',
+        ]);
 
-        return redirect()->route('admin.kelases.index')->with('success', 'Kelas berhasil dihapus.');
+        $newKelas->uuid = (string) Str::uuid();
+
+        do {
+            $kode = strtoupper(Str::random(8));
+        } while (
+            Kelas::where(
+                'kode_gabung',
+                $kode
+            )->exists()
+        );
+
+        $newKelas->kode_gabung = $kode;
+
+        $newKelas->nama_kelas =
+            $kelase->nama_kelas . ' (Copy)';
+
+        $newKelas->save();
+
+        return back()->with(
+            'success',
+            'Kelas berhasil dicopy.'
+        );
+    }
+
+    public function destroy(Kelas $kelase)
+    {
+        try {
+            $hasMahasiswa = $kelase->anggotaKelases()->exists();
+            $hasMateri = $kelase->materis()->exists();
+            $hasPenilaian = $kelase->penilaians()->exists();
+
+            if ($hasMahasiswa || $hasMateri || $hasPenilaian) {
+                return back()->with(
+                    'error',
+                    'Kelas tidak bisa dihapus karena sudah memiliki data mahasiswa, materi, atau penilaian.'
+                );
+            }
+
+            $kelase->delete();
+
+            return redirect()
+                ->route('admin.kelases.index')
+                ->with('success', 'Kelas berhasil dihapus.');
+        } catch (\Illuminate\Database\QueryException $e) {
+
+            return redirect()
+                ->route('admin.kelases.index')
+                ->with(
+                    'error',
+                    'Kelas tidak bisa dihapus karena masih digunakan pada data akademik.'
+                );
+        }
     }
 
     /**

@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('kurikulums', function (Blueprint $table) {
             $table->id();
             $table->foreignId('mata_kuliah_id')->constrained('mata_kuliahs')->onDelete('cascade');
-            $table->foreignId('jurusan_id')->constrained('jurusans');
+            $table->foreignId('jurusan_id')->constrained('jurusans')->restrictOnDelete();
             $table->string('kode_mk_jurusan'); // Di sinilah kode TI/SI disimpan
             $table->timestamps();
         });

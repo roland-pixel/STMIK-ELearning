@@ -13,10 +13,10 @@ return new class extends Migration
     {
         Schema::create('rekap_nilais', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('mahasiswa_id')->constrained('mahasiswas')->onDelete('cascade');
-            $table->foreignId('semester_id')->constrained('semesters')->onDelete('cascade');
-            $table->foreignId('mata_kuliah_id')->constrained('mata_kuliahs')->onDelete('cascade');
-            $table->foreignId('kelas_id')->constrained('kelases')->onDelete('cascade');
+            $table->foreignId('mahasiswa_id')->constrained('mahasiswas')->restrictOnDelete();
+            $table->foreignId('semester_id')->constrained('semesters')->restrictOnDelete();
+            $table->foreignId('mata_kuliah_id')->constrained('mata_kuliahs')->restrictOnDelete();
+            $table->foreignId('kelas_id')->constrained('kelases')->restrictOnDelete();
             $table->decimal('total_tugas', 5, 2);
             $table->decimal('total_uts', 5, 2);
             $table->decimal('total_uas', 5, 2);

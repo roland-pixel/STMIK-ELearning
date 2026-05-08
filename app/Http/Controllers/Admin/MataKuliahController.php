@@ -119,7 +119,17 @@ class MataKuliahController extends Controller
 
     public function destroy(MataKuliah $mata_kuliah)
     {
-        $mata_kuliah->delete(); // Kurikulums akan terhapus otomatis jika menggunakan onDelete('cascade') di migrasi
-        return redirect()->route('admin.mata_kuliahs.index')->with('success', 'Mata kuliah dihapus.');
+        try {
+            $mata_kuliah->delete(); // Kurikulums akan terhapus otomatis jika menggunakan onDelete('cascade') di migrasi
+            return redirect()->route('admin.mata_kuliahs.index')->with('success', 'Mata kuliah dihapus.');
+        } catch (\Illuminate\Database\QueryException $e) {
+
+            return redirect()
+                ->route('admin.mata_kuliahs.index')
+                ->with(
+                    'error',
+                    'Mata kuliah tidak bisa dihapus karena masih digunakan pada data akademik.'
+                );
+        }
     }
 }
