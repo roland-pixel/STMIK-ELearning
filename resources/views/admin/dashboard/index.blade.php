@@ -51,7 +51,7 @@
             </div>
         </section>
 
-        <!-- ✅ 4 mini card diganti jadi statistik akademik -->
+        <!-- ✅ 4 mini card statistik akademik -->
         <section class="xl:col-span-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 gap-6">
             <!-- Total Mahasiswa -->
             <div class="bg-white border border-ink-200 rounded-3xl shadow-soft p-5">
@@ -62,12 +62,9 @@
                             <path d="M4 21a8 8 0 0 1 16 0" stroke="currentColor" stroke-width="1.8" />
                         </svg>
                     </div>
-                    <button
-                        class="w-9 h-9 rounded-2xl hover:bg-ink-100 transition flex items-center justify-center text-ink-500"
-                        title="Detail">⋮</button>
                 </div>
                 <p class="mt-3 text-sm text-ink-500">Total Mahasiswa</p>
-                <p class="mt-1 text-2xl font-bold" id="totalMahasiswa">g(3)</p>
+                <p class="mt-1 text-2xl font-bold" id="totalMahasiswa">{{ $totalMahasiswa }}</p>
                 <p class="mt-2 text-sm text-ink-600">Mahasiswa terdaftar</p>
             </div>
 
@@ -80,12 +77,9 @@
                             <path d="M4 21a8 8 0 0 1 16 0" stroke="currentColor" stroke-width="1.8" />
                         </svg>
                     </div>
-                    <button
-                        class="w-9 h-9 rounded-2xl hover:bg-ink-100 transition flex items-center justify-center text-ink-500"
-                        title="Detail">⋮</button>
                 </div>
                 <p class="mt-3 text-sm text-ink-500">Total Dosen</p>
-                <p class="mt-1 text-2xl font-bold" id="totalDosen">g(2)</p>
+                <p class="mt-1 text-2xl font-bold" id="totalDosen">{{ $totalDosen }}</p>
                 <p class="mt-2 text-sm text-ink-600">Dosen pengajar</p>
             </div>
 
@@ -99,12 +93,9 @@
                             <path d="M7 19V5" stroke="currentColor" stroke-width="1.6" />
                         </svg>
                     </div>
-                    <button
-                        class="w-9 h-9 rounded-2xl hover:bg-ink-100 transition flex items-center justify-center text-ink-500"
-                        title="Detail">⋮</button>
                 </div>
                 <p class="mt-3 text-sm text-ink-500">Total Mata Kuliah</p>
-                <p class="mt-1 text-2xl font-bold" id="totalMatkul">g(3)</p>
+                <p class="mt-1 text-2xl font-bold" id="totalMatkul">{{ $totalMatkul }}</p>
                 <p class="mt-2 text-sm text-ink-600">Kurikulum aktif</p>
             </div>
 
@@ -119,32 +110,27 @@
                             <path d="M8 13h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
                         </svg>
                     </div>
-                    <button
-                        class="w-9 h-9 rounded-2xl hover:bg-ink-100 transition flex items-center justify-center text-ink-500"
-                        title="Detail">⋮</button>
                 </div>
                 <p class="mt-3 text-sm text-ink-500">Semester Aktif</p>
-                <p class="mt-1 text-2xl font-bold" id="semesterAktif">x(255)</p>
+                <p class="mt-1 text-xl font-bold" id="semesterAktif">
+                    {{ $semesterAktif->nama_semester ?? 'Tidak Ada' }}
+                </p>
                 <p class="mt-2 text-sm text-ink-600">Saat ini berjalan</p>
             </div>
         </section>
 
         <!-- Total Revenue chart (biarin sama) -->
+        <!-- Statistik Pengumpulan Tugas (Ganti dari Total Revenue) -->
         <section class="xl:col-span-8 bg-white border border-ink-200 rounded-3xl shadow-soft overflow-hidden">
             <div class="px-6 py-5 flex items-center justify-between border-b border-ink-200">
                 <div>
-                    <h3 class="text-lg font-semibold">Total Revenue</h3>
+                    <h3 class="text-lg font-semibold">Statistik Pengumpulan Tugas</h3>
                     <p class="text-sm text-ink-500 mt-0.5">
                         <span class="inline-flex items-center gap-2 mr-4">
-                            <span class="w-2.5 h-2.5 rounded-full bg-maroon-700"></span> 2023
-                        </span>
-                        <span class="inline-flex items-center gap-2">
-                            <span class="w-2.5 h-2.5 rounded-full bg-ink-300"></span> 2022
+                            <span class="w-2.5 h-2.5 rounded-full bg-maroon-700"></span> Tahun {{ date('Y') }}
                         </span>
                     </p>
                 </div>
-                <button
-                    class="w-10 h-10 rounded-2xl hover:bg-ink-100 transition flex items-center justify-center text-ink-500">⋮</button>
             </div>
             <div class="p-6">
                 <div class="h-72">
@@ -153,16 +139,14 @@
             </div>
         </section>
 
-        <!-- Growth / Gauge (biarin sama) -->
+        <!-- Status Mahasiswa (Ganti dari Growth) -->
         <section class="xl:col-span-4 bg-white border border-ink-200 rounded-3xl shadow-soft overflow-hidden">
             <div class="px-6 py-5 flex items-center justify-between border-b border-ink-200">
                 <div class="flex items-center gap-3">
-                    <h3 class="text-lg font-semibold">Growth</h3>
+                    <h3 class="text-lg font-semibold">Status Mahasiswa</h3>
                     <span
-                        class="text-xs px-2 py-1 rounded-lg bg-maroon-600/10 text-maroon-800 border border-maroon-200/50">2023</span>
+                        class="text-xs px-2 py-1 rounded-lg bg-maroon-600/10 text-maroon-800 border border-maroon-200/50">Aktif</span>
                 </div>
-                <button
-                    class="w-10 h-10 rounded-2xl hover:bg-ink-100 transition flex items-center justify-center text-ink-500">⋮</button>
             </div>
 
             <div class="p-6">
@@ -178,21 +162,17 @@
                         </svg>
 
                         <div class="absolute inset-0 flex flex-col items-center justify-center">
-                            <p id="gaugeValue" class="text-4xl font-bold text-ink-900">78%</p>
-                            <p class="text-sm text-ink-500 -mt-1">Company Growth</p>
+                            <p id="gaugeValue" class="text-4xl font-bold text-ink-900">{{ $persentaseAktif }}%</p>
+                            <p class="text-sm text-ink-500 -mt-1">Mahasiswa Aktif</p>
                         </div>
                     </div>
                 </div>
 
                 <div class="mt-6 rounded-2xl border border-ink-200 bg-ink-50 p-4">
                     <p class="text-sm text-ink-600">
-                        Great! Your company growth is
-                        <span class="font-semibold text-maroon-800">+78%</span> this year.
+                        Saat ini terdapat <span class="font-semibold text-maroon-800">{{ $persentaseAktif }}%</span>
+                        mahasiswa dengan status aktif dari total seluruh mahasiswa.
                     </p>
-                    <button
-                        class="mt-4 w-full px-4 py-2.5 rounded-2xl bg-maroon-700 text-white font-semibold hover:bg-maroon-800 transition">
-                        Upgrade to Pro
-                    </button>
                 </div>
             </div>
         </section>
@@ -202,70 +182,33 @@
 
 @push('page-scripts')
     <script>
-        // --- Chart (Total Revenue) ---
+        // --- Data dari Laravel ---
+        const dataPengumpulan = @json($chartData);
+        const persentaseAktif = {{ $persentaseAktif }};
+
+        // --- Chart (Pengumpulan Tugas) ---
         const ctx = document.getElementById('revenueChart');
         const labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-        const data2023 = [18, 7, 15, 28, 20, 12, 26, 19, 11, 22, 14, 9];
-        const data2022 = [14, 5, 11, 18, 16, 10, 19, 14, 9, 16, 12, 7];
 
         new Chart(ctx, {
             type: 'bar',
             data: {
                 labels,
                 datasets: [{
-                        label: '2023',
-                        data: data2023,
-                        borderRadius: 10,
-                        backgroundColor: 'rgba(159, 18, 57, 0.85)'
-                    },
-                    {
-                        label: '2022',
-                        data: data2022,
-                        borderRadius: 10,
-                        backgroundColor: 'rgba(148, 163, 184, 0.65)'
-                    }
-                ]
+                    label: 'Jumlah Pengumpulan',
+                    data: dataPengumpulan, // Menggunakan data dinamis
+                    borderRadius: 10,
+                    backgroundColor: 'rgba(159, 18, 57, 0.85)'
+                }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        padding: 10,
-                        backgroundColor: 'rgba(15, 23, 42, 0.92)',
-                        titleColor: '#fff',
-                        bodyColor: '#fff',
-                        borderColor: 'rgba(226, 232, 240, 0.2)',
-                        borderWidth: 1
-                    }
-                },
-                scales: {
-                    x: {
-                        grid: {
-                            display: false
-                        },
-                        ticks: {
-                            color: 'rgba(100,116,139,.9)'
-                        }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        grid: {
-                            color: 'rgba(226,232,240,.8)'
-                        },
-                        ticks: {
-                            color: 'rgba(100,116,139,.9)'
-                        }
-                    }
-                }
+                // ... (options lainnya tetap sama)
             }
         });
 
-        // --- Gauge set ---
+        // --- Gauge (Persentase Mahasiswa) ---
         const gaugeArc = document.getElementById('gaugeArc');
         const gaugeValue = document.getElementById('gaugeValue');
         const CIRC = 289;
@@ -277,6 +220,8 @@
             gaugeArc.style.strokeDashoffset = offset;
             gaugeValue.textContent = `${p}%`;
         }
-        setGauge(78);
+
+        // Panggil fungsi dengan data dari database
+        setGauge(persentaseAktif);
     </script>
 @endpush

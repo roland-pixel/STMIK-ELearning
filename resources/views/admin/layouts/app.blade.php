@@ -12,6 +12,8 @@
     {{-- Kalau kamu masih mau pakai CDN (sesuai format kamu), biarin ini: --}}
     <script src="https://cdn.tailwindcss.com"></script>
 
+    @vite('resources/css/app.css')
+
     <!-- Chart.js (for bar chart) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
@@ -65,7 +67,7 @@
         .scrollbar-hide {
             -ms-overflow-style: none;
             scrollbar-width: none;
-        }   
+        }
     </style>
     @stack('styles')
 </head>

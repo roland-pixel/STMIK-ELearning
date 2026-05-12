@@ -10,6 +10,9 @@ use Inertia\Inertia;
 
 class LeaderboardController extends Controller
 {
+    // Daftar nilai yang dianggap valid untuk syarat Cumlaude
+    private const NILAI_VALID = ['A', 'A-', 'B+', 'B', 'B-'];
+
     public function leaderboard()
     {
         $mhs = auth()->user()->mahasiswa;
@@ -18,40 +21,55 @@ class LeaderboardController extends Controller
         $students = Mahasiswa::with('user')
             ->where('jurusan_id', $mhs->jurusan_id)
             ->where('angkatan', $mhs->angkatan)
+            ->whereIn('jenis_program', ['reguler', 'malam'])
             ->get();
 
-        // 2. Hitung data akademik tiap mahasiswa
-        $leaderboardData = $students->map(function ($student) {
-            $transcript = $this->calculateAcademicMetrics($student->id);
+        // 2. Filter & Hitung data (Logika Cumlaude)
+        $leaderboardData = $students->filter(function ($student) {
 
-            return [
-                'id'           => $student->id,
-                'nim'          => $student->nim,
-                'nama_lengkap' => $student->user->nama_lengkap,
-                'total_sks'    => $transcript['totalSks'],
-                'total_kredit' => $transcript['totalKredit'],
-                'ipk'          => $transcript['ipk'],
-            ];
+            // SYARAT 1: TIDAK BOLEH REKOS (MENGULANG)
+            // Jika TRUE (artinya ketemu data mengulang), maka return FALSE (buang mahasiswa ini)
+            if ($this->isMahasiswaMengulang($student->id)) return false;
+
+            // SYARAT 2: TEPAT WAKTU (Maksimal 8 semester)
+            if (!$this->cekLulusTepat($student->id)) return false;
+
+            // SYARAT 3: NILAI MINIMAL (Tidak ada nilai di bawah B-)
+            if (!$this->cekNilaiMinimal($student->id)) return false;
+
+            return true;
         })
-            // 3. Sort multi-kolom
+            ->map(function ($student) {
+                // Syarat 4: Hitung IPK & Detail untuk Tiebreaker
+                $metrics = $this->calculateAcademicMetrics($student->id);
+
+                return [
+                    'id'            => $student->id,
+                    'nim'           => $student->nim,
+                    'nama_lengkap'  => $student->user->nama_lengkap,
+                    'total_sks'     => $metrics['totalSks'],
+                    'ipk'           => $metrics['ipk'],
+                    'total_nilai_a' => $metrics['totalNilaiA'],
+                    'nilai_skripsi' => $metrics['nilaiSkripsi'],
+                ];
+            })
+            // Filter IPK Cumlaude (Standar 3.51)
+            ->filter(fn($item) => $item['ipk'] >= 3.51)
+            // 3. Sorting Multi-Kolom (Tiebreaker)
             ->sort(function ($a, $b) {
-                if ($b['ipk'] !== $a['ipk']) {
-                    return $b['ipk'] <=> $a['ipk'];
-                }
-                if ($b['total_kredit'] !== $a['total_kredit']) {
-                    return $b['total_kredit'] <=> $a['total_kredit'];
-                }
-                return $b['total_sks'] <=> $a['total_sks'];
+                if ($b['ipk'] !== $a['ipk']) return $b['ipk'] <=> $a['ipk'];
+                if ($b['nilai_skripsi'] !== $a['nilai_skripsi']) return $b['nilai_skripsi'] <=> $a['nilai_skripsi'];
+                return $b['total_nilai_a'] <=> $a['total_nilai_a'];
             })
             ->values();
 
-        // 4. Ambil Top 10 & posisi user saat ini
+        // 4. Ambil Top 10 & Posisi User
         $top10     = $leaderboardData->take(10);
-        $myRank    = $leaderboardData->search(fn($item) => $item['id'] === $mhs->id) + 1;
+        $myRankIndex = $leaderboardData->search(fn($item) => $item['id'] === $mhs->id);
+        $myRank    = $myRankIndex !== false ? $myRankIndex + 1 : null;
         $isInTop10 = $top10->contains('id', $mhs->id);
         $myData    = $leaderboardData->firstWhere('id', $mhs->id);
 
-        // 5. Return Inertia Render
         return Inertia::render('Mahasiswa/Leaderboard/Index', [
             'leaderboard' => [
                 'top10'     => $top10,
@@ -67,106 +85,110 @@ class LeaderboardController extends Controller
     }
 
     /**
-     * Hitung IPK, Total SKS, dan Total Kredit seorang mahasiswa.
-     *
-     * LOGIKA BIMBINGAN:
-     * - PKL / Pra Skripsi / Skripsi yang nilai_angka masih NULL → SKIP
-     * (belum selesai, tidak boleh merusak IPK dan tidak dihitung SKS-nya)
-     * - Hanya yang status='approved' DAN nilai_angka IS NOT NULL yang masuk hitungan
-     *
-     * Di-cache 5 menit agar tidak N+1 query saat load leaderboard
+     * Mengecek apakah mahasiswa memiliki mata kuliah yang diambil lebih dari 1 kali.
+     * Return TRUE jika mahasiswa MENGULANG (Rekos).
      */
+    private function isMahasiswaMengulang(int $mahasiswaId): bool
+    {
+        return DB::table('anggota_kelases as ak')
+            ->join('kelases as k', 'k.id', '=', 'ak.kelas_id')
+            ->where('ak.mahasiswa_id', $mahasiswaId)
+            ->select('k.mata_kuliah_id')
+            ->groupBy('k.mata_kuliah_id')
+            ->havingRaw('COUNT(*) > 1')
+            ->exists();
+    }
+
+    private function cekLulusTepat(int $mahasiswaId): bool
+    {
+        return DB::table('anggota_kelases as ak')
+            ->join('kelases as k', 'k.id', '=', 'ak.kelas_id')
+            ->where('ak.mahasiswa_id', $mahasiswaId)
+            ->distinct()
+            ->count('k.semester_id') <= 8;
+    }
+
+    private function cekNilaiMinimal(int $mahasiswaId): bool
+    {
+        $nilaiRekap = DB::table('rekap_nilais')->where('mahasiswa_id', $mahasiswaId)->pluck('nilai_huruf');
+        $nilaiBim = DB::table('bimbingans')->where('mahasiswa_id', $mahasiswaId)
+            ->where('status', 'approved')->whereNotNull('nilai_angka')->pluck('nilai_angka')
+            ->map(fn($n) => $this->konversiHuruf($n));
+
+        $gabung = $nilaiRekap->merge($nilaiBim);
+        if ($gabung->isEmpty()) return false;
+
+        return $gabung->every(fn($n) => in_array(trim($n), self::NILAI_VALID));
+    }
+
     private function calculateAcademicMetrics(int $mahasiswaId): array
     {
-        return Cache::remember("academic_metrics_{$mahasiswaId}", 300, function () use ($mahasiswaId) {
+        return Cache::remember("academic_metrics_lb_{$mahasiswaId}", 300, function () use ($mahasiswaId) {
+            // Ambil Nilai Reguler
+            $rekapMK = DB::table('rekap_nilais as rn')
+                ->join('mata_kuliahs as mk', 'mk.id', '=', 'rn.mata_kuliah_id')
+                ->where('rn.mahasiswa_id', $mahasiswaId)
+                ->select(['rn.nilai_indeks', 'rn.nilai_huruf', 'mk.sks'])
+                ->get();
 
-            // Ambil data jurusan mahasiswa untuk mengambil kode kurikulum
-            $mahasiswa = Mahasiswa::find($mahasiswaId);
-            $jurusanId = $mahasiswa->jurusan_id;
-
-            // --- Sumber 1: Nilai dari kelas reguler (rekap_nilais) ---
-            $regularQuery = DB::table('rekap_nilais as r')
-                ->join('mata_kuliahs as mk', 'r.mata_kuliah_id', '=', 'mk.id')
-                ->join('kurikulums as k', function ($join) use ($jurusanId) {
-                    $join->on('k.mata_kuliah_id', '=', 'mk.id')
-                        ->where('k.jurusan_id', $jurusanId);
-                })
-                ->where('r.mahasiswa_id', $mahasiswaId)
-                ->select(
-                    'k.kode_mk_jurusan as kode_mk', // Mengambil kode dari tabel kurikulum
-                    'mk.sks',
-                    'r.nilai_akhir_angka'
-                );
-
-            // --- Sumber 2: Nilai bimbingan (PKL, Pra Skripsi, Skripsi) ---
-            $bimbinganQuery = DB::table('bimbingans as b')
-                ->join('mata_kuliahs as mk', 'b.mata_kuliah_id', '=', 'mk.id')
-                ->join('kurikulums as k', function ($join) use ($jurusanId) {
-                    $join->on('k.mata_kuliah_id', '=', 'mk.id')
-                        ->where('k.jurusan_id', $jurusanId);
-                })
+            // Ambil Nilai Bimbingan
+            $rekapBimbingan = DB::table('bimbingans as b')
+                ->join('mata_kuliahs as mk', 'mk.id', '=', 'b.mata_kuliah_id')
                 ->where('b.mahasiswa_id', $mahasiswaId)
                 ->where('b.status', 'approved')
                 ->whereNotNull('b.nilai_angka')
-                ->select(
-                    'k.kode_mk_jurusan as kode_mk', // Mengambil kode dari tabel kurikulum
-                    'mk.sks',
-                    'b.nilai_angka as nilai_akhir_angka'
-                );
-
-            // --- Gabungkan keduanya dengan UNION ---
-            $unionQuery = $regularQuery->union($bimbinganQuery);
-
-            // --- Ambil nilai terbaik per mata kuliah (handle kasus retake/mengulang) ---
-            $data = DB::table(DB::raw("({$unionQuery->toSql()}) as combined"))
-                ->mergeBindings($unionQuery)
-                ->select(
-                    'kode_mk',
-                    'sks',
-                    DB::raw('MAX(nilai_akhir_angka) as nilai_angka')
-                )
-                ->groupBy('kode_mk', 'sks')
+                ->select(['b.nilai_angka', 'mk.sks', 'mk.nama_mk'])
                 ->get();
 
-            // --- Hitung total SKS dan total kredit ---
-            $totalSks    = 0;
-            $totalKredit = 0.0;
+            $totalBobot = 0;
+            $totalSks = 0;
+            $totalA = 0;
 
-            foreach ($data as $item) {
-                if (is_null($item->nilai_angka)) {
-                    continue;
-                }
-
-                $indeks       = $this->konversiIndeks((float) $item->nilai_angka);
-                $totalSks    += $item->sks;
-                $totalKredit += ($item->sks * $indeks);
+            foreach ($rekapMK as $r) {
+                $totalBobot += ($r->nilai_indeks * $r->sks);
+                $totalSks   += $r->sks;
+                if (trim($r->nilai_huruf) === 'A') $totalA++;
             }
 
+            foreach ($rekapBimbingan as $b) {
+                $indeks = $this->konversiIndeks($b->nilai_angka);
+                $totalBobot += ($indeks * $b->sks);
+                $totalSks   += $b->sks;
+                if ($this->konversiHuruf($b->nilai_angka) === 'A') $totalA++;
+            }
+
+            $skripsi = $rekapBimbingan->filter(
+                fn($b) =>
+                str_contains(strtolower($b->nama_mk), 'skripsi') &&
+                    !str_contains(strtolower($b->nama_mk), 'pra')
+            )->first();
+
             return [
-                'totalSks'    => $totalSks,
-                'totalKredit' => $totalKredit,
-                'ipk'         => $totalSks > 0
-                    ? round($totalKredit / $totalSks, 2)
-                    : 0.0,
+                'totalSks'     => $totalSks,
+                'ipk'          => $totalSks > 0 ? round($totalBobot / $totalSks, 2) : 0,
+                'totalNilaiA'  => $totalA,
+                'nilaiSkripsi' => $skripsi?->nilai_angka ?? 0,
             ];
         });
     }
 
-    /**
-     * Konversi nilai angka (0-100) ke indeks mutu (0.0 - 4.0)
-     * Sesuaikan range ini dengan kebijakan kampus
-     */
-    private function konversiIndeks(float $n): float
+    private function konversiHuruf($n): string
+    {
+        if ($n >= 90) return 'A';
+        if ($n >= 86) return 'A-';
+        if ($n >= 80) return 'B+';
+        if ($n >= 76) return 'B';
+        if ($n >= 70) return 'B-';
+        return 'C';
+    }
+
+    private function konversiIndeks($n): float
     {
         if ($n >= 90) return 4.0;
         if ($n >= 86) return 3.5;
         if ($n >= 80) return 3.25;
         if ($n >= 76) return 3.0;
         if ($n >= 70) return 2.75;
-        if ($n >= 66) return 2.5;
-        if ($n >= 60) return 2.0;
-        if ($n >= 55) return 1.5;
-        if ($n >= 40) return 1.0;
-        return 0.0;
+        return 2.0;
     }
 }

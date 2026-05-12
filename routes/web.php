@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\ProfileController as AdminProfileController;
 use App\Http\Controllers\Admin\SemesterController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Dosen\DashboardController as DosenDashboardController;
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Dosen\KelasDetailController as DosenKelasDetailController;
 use App\Http\Controllers\Dosen\KelasController as DosenKelasController;
 use App\Http\Controllers\Dosen\KoreksiPenilaianController;
@@ -66,6 +67,8 @@ Route::middleware(['auth', 'role:admin'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
+
+        Route::get('dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
 
         // Resources (CRUD)
         Route::resource('jurusans', JurusanController::class)
@@ -161,6 +164,8 @@ Route::middleware(['auth', 'role:dosen'])
             Route::get('/', [DosenKelasDetailController::class, 'show'])->name('show');
             Route::patch('/settings', [DosenKelasController::class, 'updateSettings'])
                 ->name('settings.update');
+
+            Route::post('/anggota', [DosenKelasDetailController::class, 'addMahasiswa'])->name('anggota.store');
 
             /** ===== Materi ===== */
             Route::resource('materi', DosenMateriController::class)

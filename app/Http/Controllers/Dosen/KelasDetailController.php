@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Dosen;
 
 use App\Http\Controllers\Controller;
 use App\Models\Kelas;
+use App\Models\Mahasiswa;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -29,6 +30,73 @@ class KelasDetailController extends Controller
         return (int) DB::table('dosens')
             ->where('user_id', $request->user()->id)
             ->value('id');
+    }
+
+    public function addMahasiswa(Request $request, Kelas $kelas)
+    {
+        $dosenId = $this->dosenId($request);
+        abort_if((int) $kelas->dosen_id !== $dosenId, 403);
+
+        // 1. Validasi input generic
+        $request->validate([
+            'identifier' => 'required',
+        ], [
+            'identifier.required' => 'NIM atau Email mahasiswa wajib diisi.',
+        ]);
+
+        // 2. Cari mahasiswa berdasarkan NIM atau Email (lewat relasi user)
+        $mahasiswa = Mahasiswa::where('nim', $request->identifier)
+            ->orWhereHas('user', function ($query) use ($request) {
+                $query->where('email', $request->identifier);
+            })
+            ->first();
+
+        // 3. Jika tidak ditemukan, kembalikan error
+        if (!$mahasiswa) {
+            return back()->withErrors([
+                'identifier' => 'Mahasiswa dengan NIM atau Email tersebut tidak ditemukan.'
+            ]);
+        }
+
+        // 4. Cek apakah sudah terdaftar di kelas
+        $isExist = DB::table('anggota_kelases')
+            ->where('kelas_id', $kelas->id)
+            ->where('mahasiswa_id', $mahasiswa->id)
+            ->exists();
+
+        if ($isExist) {
+            return back()->withErrors([
+                'identifier' => 'Mahasiswa ini sudah terdaftar di dalam kelas.'
+            ]);
+        }
+
+        // 5. Eksekusi Transaction
+        DB::transaction(function () use ($kelas, $mahasiswa) {
+            DB::table('anggota_kelases')->insert([
+                'kelas_id' => $kelas->id,
+                'mahasiswa_id' => $mahasiswa->id,
+                'tanggal_gabung' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            DB::table('rekap_nilais')->insert([
+                'mahasiswa_id' => $mahasiswa->id,
+                'semester_id' => $kelas->semester_id,
+                'mata_kuliah_id' => $kelas->mata_kuliah_id,
+                'kelas_id' => $kelas->id,
+                'total_tugas' => 0,
+                'total_uts' => 0,
+                'total_uas' => 0,
+                'nilai_akhir_angka' => 0,
+                'nilai_huruf' => 'E',
+                'nilai_indeks' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        return back()->with('success', 'Mahasiswa berhasil ditambahkan.');
     }
 
     public function show(Request $request, Kelas $kelas)
