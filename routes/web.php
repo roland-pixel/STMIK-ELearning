@@ -192,6 +192,7 @@ Route::middleware(['auth', 'role:dosen'])
                 // ✅ UUID BINDING!
                 Route::get('/{penilaian:uuid}/edit', [PenilaianManualController::class, 'edit'])->name('edit');
                 Route::put('/{penilaian:uuid}', [PenilaianManualController::class, 'update'])->name('update');
+                Route::delete('/{penilaian:uuid}', [PenilaianManualController::class, 'destroy'])->name('destroy');
             });
         });
     });
@@ -239,7 +240,7 @@ Route::middleware(['auth', 'role:mahasiswa'])
             Route::prefix('penilaian/online/{penilaian:uuid}')->name('penilaian.online.')->group(function () {
                 Route::get('/', [PengerjaanPenilaianController::class, 'show'])
                     ->name('show');
-                Route::get('/kerjakan', [PengerjaanPenilaianController::class, 'kerjakan'])
+                Route::match(['get', 'post'], '/kerjakan', [PengerjaanPenilaianController::class, 'kerjakan'])
                     ->name('kerjakan');
                 Route::post('/submit', [PengerjaanPenilaianController::class, 'submit'])
                     ->name('submit');

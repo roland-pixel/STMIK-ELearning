@@ -221,6 +221,37 @@ class PenilaianManualController extends Controller
         });
     }
 
+    public function destroy(Kelas $kelas, Penilaian $penilaian)
+    {
+        $this->ensureOwner($kelas);
+
+        return DB::transaction(function () use ($penilaian, $kelas) {
+
+            // ambil mahasiswa yang punya pengumpulan
+            $mahasiswaIds = Pengumpulan::where('penilaian_id', $penilaian->id)
+                ->pluck('mahasiswa_id');
+
+            // hapus pengumpulan
+            Pengumpulan::where('penilaian_id', $penilaian->id)
+                ->delete();
+
+            // regenerate rekap tiap mahasiswa
+            foreach ($mahasiswaIds as $mahasiswaId) {
+                $this->regenerateRekapNilaiForMahasiswa(
+                    $penilaian->id,
+                    $mahasiswaId
+                );
+            }
+
+            // hapus penilaian
+            $penilaian->delete();
+
+            return redirect()
+                ->route('dosen.kelas.show', $kelas->uuid)
+                ->with('success', 'Penilaian manual berhasil dihapus.');
+        });
+    }
+
     private function regenerateRekapNilaiForMahasiswa($penilaianId, $mahasiswaId)
     {
         $pengumpulan = Pengumpulan::where('penilaian_id', $penilaianId)

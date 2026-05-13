@@ -49,10 +49,16 @@ const progressPct = (p) => {
         <div class="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-0">
             <HeaderTabs v-model:tab="tab" :tabs="tabs" @open-settings="showSettings = true" />
 
-            <!-- Flash -->
+            <!-- Flash Success -->
             <div v-if="page.props.flash?.success"
                 class="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-900">
                 {{ page.props.flash.success }}
+            </div>
+
+            <!-- Flash Error -->
+            <div v-if="page.props.flash?.error"
+                class="mt-4 rounded-2xl border border-rose-100 bg-rose-50/70 px-4 py-3 text-sm text-rose-900">
+                {{ page.props.flash.error }}
             </div>
 
             <!-- CONTENT -->

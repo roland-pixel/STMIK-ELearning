@@ -533,17 +533,53 @@ class PenilaianOnlineController extends Controller
         $this->ensurePenilaianInKelas($kelas, $penilaian);
         $this->ensurePenilaianOnline($penilaian);
 
+        // 🔥 cek apakah sudah ada mahasiswa mengerjakan
+        $sudahAdaPengumpulan = Pengumpulan::where(
+            'penilaian_id',
+            $penilaian->id
+        )->exists();
+
+        // kalau sudah ada, jangan hapus
+        if ($sudahAdaPengumpulan) {
+            return redirect()
+                ->route('dosen.kelas.show', $kelas->uuid)
+                ->with(
+                    'error',
+                    'Penilaian tidak dapat dihapus karena sudah ada mahasiswa yang mengerjakan.'
+                );
+        }
+
         DB::beginTransaction();
+
         try {
+
+            // hapus folder file penilaian
             if (!empty($penilaian->uuid)) {
-                Storage::disk('public')->deleteDirectory("penilaian/{$penilaian->uuid}");
+                Storage::disk('public')
+                    ->deleteDirectory("penilaian/{$penilaian->uuid}");
             }
+
+            // aman, karena belum ada pengumpulan
             $penilaian->delete();
+
             DB::commit();
-            return redirect()->route('dosen.kelas.show', $kelas->uuid)->with('success', 'Penilaian online berhasil dihapus.');
+
+            return redirect()
+                ->route('dosen.kelas.show', $kelas->uuid)
+                ->with(
+                    'success',
+                    'Penilaian online berhasil dihapus.'
+                );
         } catch (\Throwable $e) {
+
             DB::rollBack();
-            throw $e;
+
+            return redirect()
+                ->route('dosen.kelas.show', $kelas->uuid)
+                ->with(
+                    'error',
+                    'Gagal menghapus penilaian.'
+                );
         }
     }
 }

@@ -46,24 +46,44 @@ class ProfileController extends Controller
         abort_if($user->peran !== 'mahasiswa', 403);
         abort_if(!$user->mahasiswa, 403, 'Akun mahasiswa belum terhubung ke data mahasiswa.');
 
+        // 🔥 nama_lengkap dihapus dari validasi
         $validated = $request->validate([
-            'nama_lengkap' => ['required', 'string', 'max:150'],
-            'email' => ['required', 'email', 'max:150', Rule::unique('users', 'email')->ignore($user->id)],
-            'avatar' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'email' => [
+                'required',
+                'email',
+                'max:150',
+                Rule::unique('users', 'email')->ignore($user->id)
+            ],
+            'avatar' => [
+                'nullable',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:2048'
+            ],
         ]);
 
+        // upload avatar baru
         if ($request->hasFile('avatar')) {
+
+            // hapus avatar lama
             if ($user->avatar && Storage::disk('public')->exists($user->avatar)) {
                 Storage::disk('public')->delete($user->avatar);
             }
-            $validated['avatar'] = $request->file('avatar')->store('avatars', 'public');
+
+            $validated['avatar'] = $request
+                ->file('avatar')
+                ->store('avatars', 'public');
         } else {
             unset($validated['avatar']);
         }
 
+        // 🔥 hanya email + avatar yang diupdate
         $user->update($validated);
 
-        return back()->with('success', 'Profil berhasil diperbarui.');
+        return back()->with(
+            'success',
+            'Profil berhasil diperbarui.'
+        );
     }
 
     public function updatePassword(Request $request)

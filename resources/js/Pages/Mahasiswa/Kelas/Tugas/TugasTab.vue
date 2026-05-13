@@ -34,20 +34,16 @@ const goMateriIndex = (m = null) => {
     router.visit(url, { preserveScroll: true });
 };
 
-
-const goPenilaianOnlineIndex = (p = null) => {
-    const url = safeRoute(
-        "mahasiswa.kelas.penilaian.online.kerjakan",
+/** ================= Computed URLs ================= */
+const penilaianShowUrl = (p) => {
+    return safeRoute(
+        "mahasiswa.kelas.penilaian.online.show",
         {
             kelas: props.kelas.uuid,
             penilaian: p.uuid
         },
-        null
+        "#"
     );
-
-    if (url) {
-        router.post(url);
-    }
 };
 
 /** ================= Row menu (3 titik) ================= */
@@ -305,11 +301,12 @@ const copyPenilaianLink = async (p) => {
                                 </div>
                             </div>
 
-                            <button type="button"
-                                class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-bold rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 transition"
-                                @click.stop="goPenilaianOnlineIndex(p)">
+                            <!-- ✅ DIUBAH: pakai <a> dengan penilaianShowUrl -->
+                            <a :href="penilaianShowUrl(p)"
+                                class="mt-4 block w-full text-center inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-bold rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 transition"
+                                @click.stop>
                                 {{ p.pengumpulans?.length > 0 ? 'Lihat Hasil / Nilai' : 'Mulai Kerjakan' }}
-                            </button>
+                            </a>
                         </div>
                     </div>
                 </div>

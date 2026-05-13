@@ -120,10 +120,16 @@
             width: 50%;
             text-align: center;
             vertical-align: top;
+            padding: 0 10px;
         }
 
         .space {
             height: 60px;
+        }
+
+        .jabatan {
+            font-weight: bold;
+            font-size: 9pt;
         }
 
         .catatan {
@@ -135,7 +141,6 @@
 </head>
 
 <body>
-
     <div class="header">
         <h2>TRANSKRIP AKADEMIK SEMENTARA</h2>
     </div>
@@ -150,20 +155,12 @@
             <td width="33%">STRATA 1 (S1)</td>
         </tr>
         <tr>
-            <td>TPT/TGL. LAHIR</td>
-            <td>:</td>
-            <td>- / {{ \Carbon\Carbon::parse($mahasiswa->tanggal_lahir ?? now())->format('d-m-Y') }}</td>
-            <td>JURUSAN</td>
-            <td>:</td>
-            <td>{{ strtoupper($mahasiswa->jurusan->nama_jurusan ?? '-') }}</td>
-        </tr>
-        <tr>
             <td>N.R.P / NIM</td>
             <td>:</td>
             <td>{{ $mahasiswa->nim }}</td>
-            <td>NO. IJAZAH</td>
+            <td>JURUSAN</td>
             <td>:</td>
-            <td>-</td>
+            <td>{{ strtoupper($mahasiswa->jurusan->nama_jurusan ?? '-') }}</td>
         </tr>
     </table>
 
@@ -256,14 +253,17 @@
         <table class="ttd-table">
             <tr>
                 <td>
-                    {{-- Kosong untuk WAKET --}}
+                    <div class="jabatan">WAKIL KETUA,</div>
+                    <div class="space"></div>
+                    <strong><u>Dr. John Doe, S.Kom, M.Kom</u></strong><br>
+                    NIP. 19820301 201001 1 001
                 </td>
                 <td>
-                    Palangkaraya, {{ $tanggal_cetak }}<br>
-                    <strong>KETUA,</strong>
+                    Banjarmasin, {{ $tanggal_cetak }}<br>
+                    <div class="jabatan"><strong>KETUA,</strong></div>
                     <div class="space"></div>
-                    <strong><u>NAMA KETUA KAMPUS, M.Kom</u></strong><br>
-                    NIP. 19700101 200003 1 001
+                    <strong><u>Dr. Jane Smith, S.Kom, M.Kom</u></strong><br>
+                    NIP. 19700101 200003 1 002
                 </td>
             </tr>
         </table>

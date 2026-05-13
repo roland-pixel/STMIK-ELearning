@@ -162,9 +162,10 @@
     <table class="kop-surat">
         <tr>
             <td style="text-align: center;">
-                <h1>{{ config('app.name', 'UNIVERSITAS TERBUKA') }}</h1>
-                <p>Alamat Kampus No. 123, Kota Anda, Kode Pos 54321</p>
-                <p>Telp: (021) 1234567 | Website: www.universitas-anda.ac.id</p>
+                <h1>STMIK INDONESIA BANJARMASIN</h1>
+                <p>Jl. Pangeran Hidayatullah, Sungai Jingah, Kec. Banjarmasin Utara, Kota Banjarmasin, Kalimantan
+                    Selatan 70122</p>
+                <p>Telp: (0511) 333333 | Website: www.stmik.id</p>
             </td>
         </tr>
     </table>
@@ -185,17 +186,14 @@
             <td>Nama Mahasiswa</td>
             <td>:</td>
             <td class="font-bold">{{ strtoupper($mahasiswa->user->nama_lengkap) }}</td>
-            <td>Periode</td>
+            <td>Tanggal Cetak</td>
             <td>:</td>
-            <td>{{ $semester->periode }}</td>
+            <td>{{ $tanggal_cetak }}</td>
         </tr>
         <tr>
             <td>Program Studi</td>
             <td>:</td>
             <td>{{ $mahasiswa->jurusan->nama_jurusan ?? '-' }}</td>
-            <td>Tanggal Cetak</td>
-            <td>:</td>
-            <td>{{ $tanggal_cetak }}</td>
         </tr>
     </table>
 
@@ -294,16 +292,17 @@
         <table class="ttd-table">
             <tr>
                 <td>
-                    Mengetahui,<br>
-                    Orang Tua/Wali Mahasiswa,
+                    WAKIL KETUA I
                     <div class="space-signature"></div>
+                    <span class="name-line">Dr. John Doe, S.Kom, M.Kom</span>
+                    NIP. 19820301 201001 1 001
                     <div style="border-bottom: 1px dotted #000; width: 150px; margin: 0 auto;"></div>
                 </td>
                 <td>
-                    Kota Anda, {{ $tanggal_cetak }}<br>
-                    Admin Akademik,
+                    Banjarmasin, {{ $tanggal_cetak }}<br>
+                    Ketua Jurusan
                     <div class="space-signature"></div>
-                    <span class="name-line">{{ auth()->user()->nama_lengkap ?? 'Admin Akademik, M.Kom' }}</span>
+                    <span class="name-line">Dr. Jane Smith, S.Kom, M.Kom</span>
                     NIP. 19820301 201001 1 002
                 </td>
             </tr>
