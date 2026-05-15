@@ -26,13 +26,7 @@
         </div>
 
         <div class="flex items-center gap-2">
-            <button class="w-10 h-10 rounded-2xl hover:bg-ink-100 transition flex items-center justify-center">
-                <svg class="w-6 h-6 text-ink-600" viewBox="0 0 24 24" fill="none">
-                    <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 7h18s-3 0-3-7Z" stroke="currentColor" stroke-width="1.8"
-                        stroke-linejoin="round" />
-                    <path d="M10 19a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-                </svg>
-            </button>
+
 
             <a href="{{ route('admin.activity_logs.index') }}"
                 class="w-10 h-10 rounded-2xl hover:bg-ink-100 transition

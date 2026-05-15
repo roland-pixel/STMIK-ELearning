@@ -101,9 +101,9 @@
     <nav class="fixed w-full z-50 transition-all duration-300" id="navbar">
         <div class="glass-nav py-4 px-6 md:px-12 flex justify-between items-center shadow-sm">
             <div class="flex items-center gap-3 cursor-pointer">
-                <div
-                    class="w-10 h-10 bg-gradient-to-br from-rose-500 to-rose-700 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-rose-500/30">
-                    <i class="fas fa-graduation-cap"></i>
+                <div class="w-10 h-10 flex items-center justify-center text-white ">
+                    <img src="{{ asset('assets/stmiklogo.png') }}" alt="STMIK Indonesia Logo"
+                        class="w-full h-full object-contain">
                 </div>
                 <div>
                     <h1 class="font-bold text-xl text-slate-800 leading-tight">Classroom</h1>
