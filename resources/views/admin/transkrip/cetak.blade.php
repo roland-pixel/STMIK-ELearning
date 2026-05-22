@@ -253,17 +253,17 @@
         <table class="ttd-table">
             <tr>
                 <td>
-                    <div class="jabatan">WAKIL KETUA,</div>
+                    <div class="jabatan">WAKIL KETUA I</div>
                     <div class="space"></div>
-                    <strong><u>Dr. John Doe, S.Kom, M.Kom</u></strong><br>
-                    NIP. 19820301 201001 1 001
+                    <strong><u>Johan Wahyudi, S.Kom, M.Kom</u></strong><br>
+                    NIP. 19770921 200501 1 003
                 </td>
                 <td>
                     Banjarmasin, {{ $tanggal_cetak }}<br>
                     <div class="jabatan"><strong>KETUA,</strong></div>
                     <div class="space"></div>
-                    <strong><u>Dr. Jane Smith, S.Kom, M.Kom</u></strong><br>
-                    NIP. 19700101 200003 1 002
+                    <strong><u>Seradi Angkasa, SE, M.Kom</u></strong><br>
+                    NIK: 01 1507 061
                 </td>
             </tr>
         </table>

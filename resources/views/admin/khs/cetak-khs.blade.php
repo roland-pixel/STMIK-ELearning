@@ -225,7 +225,6 @@
                     </td>
                     <td class="font-bold">{{ $item->sks }}</td>
 
-                    {{-- Logika kolom nilai komponen --}}
                     @if ($item->jenis_mk === 'Spesial')
                         <td colspan="3" class="italic" style="color: #666; font-size: 8pt;">Nilai Terpadu</td>
                     @else
@@ -294,16 +293,21 @@
                 <td>
                     WAKIL KETUA I
                     <div class="space-signature"></div>
-                    <span class="name-line">Dr. John Doe, S.Kom, M.Kom</span>
-                    NIP. 19820301 201001 1 001
+                    <span class="name-line">Johan Wahyudi, S.Kom, M.Kom</span>
+                    NIP. 19770921 200501 1 003
                     <div style="border-bottom: 1px dotted #000; width: 150px; margin: 0 auto;"></div>
                 </td>
                 <td>
                     Banjarmasin, {{ $tanggal_cetak }}<br>
-                    Ketua Jurusan
+                    Ketua Jurusan {{ $mahasiswa->jurusan->nama_jurusan ?? '' }}
                     <div class="space-signature"></div>
-                    <span class="name-line">Dr. Jane Smith, S.Kom, M.Kom</span>
-                    NIP. 19820301 201001 1 002
+                    {{-- Diubah menjadi dinamis sesuai array dari controller --}}
+                    <span class="name-line">{{ $ketua_jurusan['nama'] }}</span>
+                    @if (isset($ketua_jurusan['nik']))
+                        NIK. {{ $ketua_jurusan['nik'] }}
+                    @else
+                        NIP. {{ $ketua_jurusan['nip'] ?? '-' }}
+                    @endif
                 </td>
             </tr>
         </table>

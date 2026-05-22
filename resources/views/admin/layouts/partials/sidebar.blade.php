@@ -222,11 +222,10 @@
                 </a>
 
                 {{-- Cumlaude --}}
-                <a class="flex items-center gap-3 px-3 py-2.5 rounded-2xl transition text-ink-700 hover:bg-ink-100"
-                    href="{{ route('admin.cumlaude.index') }}">
+                <a href="{{ route('admin.cumlaude.index') }}"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-2xl transition {{ navItemClass(['admin.cumlaude.*']) }}">
                     <span
-                        class="w-9 h-9 rounded-xl bg-white border border-ink-200 flex items-center justify-center text-ink-600">
-                        {{-- Chart --}}
+                        class="w-9 h-9 rounded-xl border flex items-center justify-center {{ navIconWrapClass(['admin.transkrip.*']) }}">
                         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none">
                             <path d="M4 19V5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
                             <path d="M4 19h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
@@ -234,7 +233,7 @@
                                 stroke-linecap="round" />
                         </svg>
                     </span>
-                    <span class="font-medium">Cumlaude</span>
+                    <span class="{{ navLabelClass(['admin.cumlaude.*']) }}">Kelola Cumlaude</span>
                 </a>
 
             </div>

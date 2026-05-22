@@ -167,6 +167,36 @@ class KelolaKHSController extends Controller
         return 0.0;
     }
 
+    /**
+     * Fungsi Helper Lokal untuk mapping nama Ketua Jurusan secara instan tanpa ubah DB
+     */
+    private function getKetuaJurusanDetail($namaJurusan)
+    {
+        $daftarKajur = [
+            'Sistem Informasi' => [
+                'nama' => 'Samsuri, S.Kom, M.Kom',
+                'nik'  => '01 1409 053'
+            ],
+            'Teknik Informatika' => [
+                'nama' => 'Ahmad Riad, M.Kom',
+                'nip'  => '19850412 201302 1 005'
+            ],
+            'Komputerisasi Akuntansi' => [
+                'nama' => 'Dewi Lestari, S.E., M.M.',
+                'nip'  => '19881123 201504 2 001'
+            ],
+            'Manajemen Informatika' => [
+                'nama' => 'Budi Setiawan, M.T.',
+                'nip'  => '19790105 200801 1 003'
+            ],
+        ];
+
+        return $daftarKajur[$namaJurusan] ?? [
+            'nama' => 'Belum Ditentukan',
+            'nip'  => '-'
+        ];
+    }
+
     public function previewKHS(Request $request)
     {
         $request->validate([
@@ -183,12 +213,17 @@ class KelolaKHSController extends Controller
         $totalSKS = $khsData->sum('sks') ?? 0;
         $ipk = $totalSKS > 0 ? round($totalMutu / $totalSKS, 2) : 0;
 
+        // Ambil data kajur untuk tampilan preview
+        $namaJurusan = $mahasiswa->jurusan->nama_jurusan ?? '-';
+        $ketua_jurusan = $this->getKetuaJurusanDetail($namaJurusan);
+
         return view('admin.khs.preview-khs', compact(
             'mahasiswa',
             'semester',
             'khsData',
             'ipk',
-            'totalSKS'
+            'totalSKS',
+            'ketua_jurusan'
         ));
     }
 
@@ -208,13 +243,18 @@ class KelolaKHSController extends Controller
         $totalSKS = $khsData->sum('sks') ?? 0;
         $ipk = $totalSKS > 0 ? round($totalMutu / $totalSKS, 2) : 0;
 
+        // Ambil data kajur secara dinamis berdasarkan nama jurusan mahasiswa
+        $namaJurusan = $mahasiswa->jurusan->nama_jurusan ?? '-';
+        $ketua_jurusan = $this->getKetuaJurusanDetail($namaJurusan);
+
         $data = [
             'mahasiswa' => $mahasiswa,
             'semester' => $semester,
             'khs_data' => $khsData,
             'ipk' => $ipk,
             'total_sks' => $totalSKS,
-            'tanggal_cetak' => now()->translatedFormat('d F Y')
+            'tanggal_cetak' => now()->translatedFormat('d F Y'),
+            'ketua_jurusan' => $ketua_jurusan // Data dikirim ke view cetak-khs
         ];
 
         $filename = "KHS-{$mahasiswa->nim}-" . Str::slug($semester->nama_semester) . "-" . now()->format('Ymd') . ".pdf";

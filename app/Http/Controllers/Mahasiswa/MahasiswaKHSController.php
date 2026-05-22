@@ -27,8 +27,7 @@ class MahasiswaKHSController extends Controller
             ]);
         }
 
-        // PERBAIKAN: Hanya tampilkan semester di mana mahasiswa 
-        // TERDAFTAR di setidaknya satu kelas atau memiliki rekap nilai.
+        // Hanya tampilkan semester di mana mahasiswa terdaftar atau memiliki rekap/bimbingan
         $semesters = Semester::where(function ($query) use ($mahasiswa) {
             $query->whereHas('kelases.anggotaKelases', fn($q) => $q->where('mahasiswa_id', $mahasiswa->id))
                 ->orWhereRaw("id IN (SELECT semester_id FROM rekap_nilais WHERE mahasiswa_id = ?)", [$mahasiswa->id])
@@ -37,7 +36,6 @@ class MahasiswaKHSController extends Controller
             ->orderBy('nama_semester', 'desc')
             ->get()
             ->map(function ($semester) use ($mahasiswa) {
-                // Cek data KHS untuk tampilan UI
                 $hasUmum = DB::table('rekap_nilais')
                     ->where('mahasiswa_id', $mahasiswa->id)
                     ->where('semester_id', $semester->id)
@@ -61,14 +59,14 @@ class MahasiswaKHSController extends Controller
     }
 
     /**
-     * Helper: Gabungkan Matkul Umum & Spesial (Logika sama dengan Admin)
+     * Helper: Gabungkan Matkul Umum & Spesial (Meniru persis logika Admin)
      */
     private function getCombinedKHSData($mahasiswaId, $semesterId)
     {
-        $mahasiswa = \App\Models\Mahasiswa::find($mahasiswaId);
+        $mahasiswa = Mahasiswa::find($mahasiswaId);
         $jurusanId = $mahasiswa->jurusan_id;
 
-        // 1. Matkul Umum (Menggunakan leftJoin ke kurikulums)
+        // 1. Matkul Umum
         $umum = DB::table('rekap_nilais as r')
             ->join('mata_kuliahs as mk', 'r.mata_kuliah_id', '=', 'mk.id')
             ->leftJoin('kurikulums as k', function ($join) use ($jurusanId) {
@@ -78,42 +76,42 @@ class MahasiswaKHSController extends Controller
             ->where('r.mahasiswa_id', $mahasiswaId)
             ->where('r.semester_id', $semesterId)
             ->select(
-                DB::raw('COALESCE(k.kode_mk_jurusan, "N/A") as kode_tampil'), // Menggantikan mk.kode_mk agar konsisten dengan admin
+                DB::raw('COALESCE(k.kode_mk_jurusan, "N/A") as kode_tampil'),
                 'mk.nama_mk',
                 'mk.sks',
                 'mk.jenis_mk',
-                'r.nilai_akhir_angka',
-                'r.nilai_huruf',
-                'r.nilai_indeks',
                 'r.total_tugas',
                 'r.total_uts',
-                'r.total_uas'
+                'r.total_uas',
+                'r.nilai_akhir_angka',
+                'r.nilai_huruf',
+                'r.nilai_indeks'
             );
 
-        // 2. Matkul Spesial (Menggunakan leftJoin ke kurikulums)
+        // 2. Matkul Spesial
         $spesial = DB::table('bimbingans as b')
             ->join('mata_kuliahs as mk', 'b.mata_kuliah_id', '=', 'mk.id')
             ->leftJoin('kurikulums as k', function ($join) use ($jurusanId) {
                 $join->on('mk.id', '=', 'k.mata_kuliah_id')
-                    ->where('k.jurusan_id', '=', $jurusanId);
+                    ->where('k.jurusan_id', $jurusanId);
             })
-            ->where('b.mahasiswa_id', $mahasiswaId)
-            ->where('b.semester_id', $semesterId)
-            ->where('b.status', 'approved')
-            ->select(
-                DB::raw('COALESCE(k.kode_mk_jurusan, "N/A") as kode_tampil'), // Menggantikan mk.kode_mk agar konsisten dengan admin
+            ->select([
+                DB::raw('COALESCE(k.kode_mk_jurusan, "N/A") as kode_tampil'),
                 'mk.nama_mk',
                 'mk.sks',
                 'mk.jenis_mk',
+                DB::raw('NULL as total_tugas'),
+                DB::raw('NULL as total_uts'),
+                DB::raw('NULL as total_uas'),
                 'b.nilai_angka as nilai_akhir_angka',
-                DB::raw("NULL as nilai_huruf"),
-                DB::raw("NULL as nilai_indeks"),
-                DB::raw("0 as total_tugas"),
-                DB::raw("0 as total_uts"),
-                DB::raw("0 as total_uas")
-            );
+                DB::raw('NULL as nilai_huruf'),
+                DB::raw('NULL as nilai_indeks'),
+            ])
+            ->where('b.mahasiswa_id', $mahasiswaId)
+            ->where('b.semester_id', $semesterId)
+            ->where('b.status', 'approved');
 
-        // 3. Gabungkan dan urutkan berdasarkan nama_mk
+        // 3. Gabungkan dan urutkan
         return $umum->union($spesial)
             ->orderBy('nama_mk', 'asc')
             ->get()
@@ -154,16 +152,46 @@ class MahasiswaKHSController extends Controller
         return 0.0;
     }
 
+    /**
+     * Helper Lokal untuk mapping nama Ketua Jurusan secara dinamis dari versi Admin
+     */
+    private function getKetuaJurusanDetail($namaJurusan)
+    {
+        $daftarKajur = [
+            'Sistem Informasi' => [
+                'nama' => 'Dr. Jane Smith, S.Kom, M.Kom',
+                'nip'  => '19820301 201001 1 002'
+            ],
+            'Teknik Informatika' => [
+                'nama' => 'Ahmad Riad, M.Kom',
+                'nip'  => '19850412 201302 1 005'
+            ],
+            'Komputerisasi Akuntansi' => [
+                'nama' => 'Dewi Lestari, S.E., M.M.',
+                'nip'  => '19881123 201504 2 001'
+            ],
+            'Manajemen Informatika' => [
+                'nama' => 'Budi Setiawan, M.T.',
+                'nip'  => '19790105 200801 1 003'
+            ],
+        ];
+
+        return $daftarKajur[$namaJurusan] ?? [
+            'nama' => 'Belum Ditentukan',
+            'nip'  => '-'
+        ];
+    }
+
     public function previewKHS(Request $request)
     {
         if (!Auth::check() || Auth::user()->peran !== 'mahasiswa') abort(403);
 
         $request->validate(['semester_id' => 'required|exists:semesters,id']);
 
-        $mahasiswa = Auth::user()->mahasiswa;
+        $mahasiswa = Auth::user()->mahasiswa->load('user', 'jurusan');
         $semester = Semester::findOrFail($request->semester_id);
 
-        $khsData = $this->getCombinedKHSData($mahasiswa_id = $mahasiswa->id, $semester_id = $request->semester_id); // Disesuaikan menggunakan parameter
+        $khsData = $this->getCombinedKHSData($mahasiswa->id, $request->semester_id);
 
         if ($khsData->isEmpty()) {
             return back()->with('warning', 'Belum ada data nilai untuk semester ini.');
@@ -173,12 +201,16 @@ class MahasiswaKHSController extends Controller
         $totalSKS = $khsData->sum('sks') ?? 0;
         $ipk = $totalSKS > 0 ? round($totalMutu / $totalSKS, 2) : 0;
 
+        $namaJurusan = $mahasiswa->jurusan->nama_jurusan ?? '-';
+        $ketua_jurusan = $this->getKetuaJurusanDetail($namaJurusan);
+
         return Inertia::render('Mahasiswa/KHS/Index', [
-            'mahasiswa' => $mahasiswa->load('user', 'jurusan'),
+            'mahasiswa' => $mahasiswa,
             'semester' => $semester,
             'khsData' => $khsData,
             'ipk' => $ipk,
             'totalSKS' => $totalSKS,
+            'ketua_jurusan' => $ketua_jurusan,
             'isPreview' => true
         ]);
     }
@@ -189,7 +221,7 @@ class MahasiswaKHSController extends Controller
 
         $request->validate(['semester_id' => 'required|exists:semesters,id']);
 
-        $mahasiswa = Auth::user()->mahasiswa;
+        $mahasiswa = Auth::user()->mahasiswa->load('user', 'jurusan');
         $semester = Semester::findOrFail($request->semester_id);
 
         $khsData = $this->getCombinedKHSData($mahasiswa->id, $request->semester_id);
@@ -200,20 +232,34 @@ class MahasiswaKHSController extends Controller
         $totalSKS = $khsData->sum('sks') ?? 0;
         $ipk = $totalSKS > 0 ? round($totalMutu / $totalSKS, 2) : 0;
 
+        // Tarik data kajur dinamis lewat helper array
+        $namaJurusan = $mahasiswa->jurusan->nama_jurusan ?? '-';
+        $ketua_jurusan = $this->getKetuaJurusanDetail($namaJurusan);
+
+        // Payload array data disamakan persis dengan milik Admin
         $data = [
-            'mahasiswa' => $mahasiswa->load('user', 'jurusan'),
+            'mahasiswa' => $mahasiswa,
             'semester' => $semester,
-            'khs_data' => $khsData, // Perhatikan kunci array ini konsisten dengan cetak pada admin
+            'khs_data' => $khsData,
             'ipk' => $ipk,
             'total_sks' => $totalSKS,
-            'tanggal_cetak' => now()->translatedFormat('d F Y')
+            'tanggal_cetak' => now()->translatedFormat('d F Y'),
+            'ketua_jurusan' => $ketua_jurusan
         ];
 
-        $filename = "KHS-{$mahasiswa->nim}-" . Str::slug($semester->nama_semester) . ".pdf";
+        $filename = "KHS-{$mahasiswa->nim}-" . Str::slug($semester->nama_semester) . "-" . now()->format('Ymd') . ".pdf";
 
-        // Gunakan view yang sama agar desain konsisten dengan admin
-        return PDF::loadView('admin.khs.cetak-khs', $data)
+        // Ditambahkan setOptions() agar engine render PDF identik dengan versi admin
+        $pdf = PDF::loadView('admin.khs.cetak-khs', $data)
             ->setPaper('a4', 'portrait')
-            ->stream($filename);
+            ->setOptions([
+                'tempDir' => storage_path('app/public'),
+                'chroot' => base_path(),
+                'isHtml5ParserEnabled' => true,
+                'isRemoteEnabled' => true,
+                'defaultFont' => 'sans-serif',
+            ]);
+
+        return $pdf->stream($filename);
     }
 }
