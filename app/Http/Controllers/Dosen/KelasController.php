@@ -56,6 +56,8 @@ class KelasController extends Controller
 
                 // 🔥 2. REGENERATE SEMUA REKAP NILAI di kelas ini
                 $this->regenerateAllRekapNilaiKelas($kelas->id);
+
+                \Illuminate\Support\Facades\Cache::forget("kelas:global_detail:{$kelas->id}");
             });
 
             return back()->with('success', '✅ Pengaturan kelas & rekap nilai berhasil diperbarui!');

@@ -25,6 +25,7 @@ use App\Http\Controllers\Dosen\PenilaianBimbinganController;
 use App\Http\Controllers\Dosen\PenilaianManualController;
 use App\Http\Controllers\Dosen\PenilaianOnlineController;
 use App\Http\Controllers\Dosen\ProfileController as DosenProfileController;
+use App\Http\Controllers\LandingPageController;
 use App\Http\Controllers\Mahasiswa\AnggotaKelasController;
 use App\Http\Controllers\Mahasiswa\DashboardController as MahasiswaDashboardController;
 use App\Http\Controllers\Mahasiswa\ProfileController as MahasiswaProfileController;
@@ -40,9 +41,7 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::get('/', [LandingPageController::class, 'index'])->name('landing');
 
 Route::get('/login',  [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [LoginController::class, 'login'])->name('login.post');

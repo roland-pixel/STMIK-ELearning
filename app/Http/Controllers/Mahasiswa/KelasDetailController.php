@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Kelas;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 
 class KelasDetailController extends Controller
@@ -52,7 +53,116 @@ class KelasDetailController extends Controller
 
         $mahasiswaId = $this->ensureMember($request, $kelas);
 
-        // Cari anggota_kelas record milik mahasiswa ini
+        // =========================================================================
+        // BAGIAN 1: CACHE DATA GLOBAL KELAS (Ambil dari Redis/Cache jika ada)
+        // =========================================================================
+        $cachedKelasData = Cache::remember("kelas:global_detail:{$kelas->id}", 1800, function () use ($kelas) {
+            $theme = $this->themeFor($kelas->uuid ?? (string) $kelas->id);
+            $totalAnggota = $kelas->anggotaKelases()->count();
+
+            $kelas->load([
+                'dosen.user:id,nama_lengkap,email,avatar',
+                'mataKuliah:id,nama_mk,sks,jenis_mk',
+                'semester:id,nama_semester,status_aktif,tanggal_mulai,tanggal_selesai',
+            ]);
+
+            $materis = $kelas->materis()
+                ->latest()
+                ->get()
+                ->map(fn($m) => [
+                    'id' => $m->id,
+                    'judul' => $m->judul,
+                    'deskripsi' => $m->deskripsi,
+                    'file_path' => $m->file_path,
+                    'link_url' => $m->link_url,
+                    'created_at' => optional($m->created_at)->toDateTimeString(),
+                ])->toArray();
+
+            $penilaiansRaw = $kelas->penilaians()
+                ->where('mode_penilaian', 'online')
+                ->latest()
+                ->get(['id', 'uuid', 'judul', 'instruksi', 'kategori', 'mode_penilaian', 'tenggat_waktu', 'created_at'])
+                ->map(fn($p) => [
+                    'id' => $p->id,
+                    'uuid' => $p->uuid,
+                    'judul' => $p->judul,
+                    'instruksi' => $p->instruksi,
+                    'kategori' => $p->kategori,
+                    'mode_penilaian' => $p->mode_penilaian,
+                    'tenggat_waktu' => optional($p->tenggat_waktu)->toDateTimeString(),
+                    'created_at' => optional($p->created_at)->toDateTimeString(),
+                ])->toArray();
+
+            $anggota = $kelas->anggotaKelases()
+                ->with([
+                    'mahasiswa:id,uuid,nim,user_id',
+                    'mahasiswa.user:id,nama_lengkap,email,avatar',
+                ])
+                ->latest('tanggal_gabung')
+                ->get()
+                ->map(fn($a) => [
+                    'id' => $a->id,
+                    'tanggal_gabung' => optional($a->tanggal_gabung)->toDateTimeString(),
+                    'mahasiswa' => [
+                        'uuid' => $a->mahasiswa?->uuid,
+                        'nim' => $a->mahasiswa?->nim,
+                        'user_id' => $a->mahasiswa?->user_id,
+                        'nama_lengkap' => $a->mahasiswa?->user?->nama_lengkap,
+                        'email' => $a->mahasiswa?->user?->email,
+                        'avatar' => $a->mahasiswa?->user?->avatar,
+                    ],
+                ])->toArray();
+
+            return [
+                'kelas_info' => [
+                    'id' => $kelas->id,
+                    'uuid' => $kelas->uuid,
+                    'nama_kelas' => $kelas->nama_kelas,
+                    'deskripsi' => $kelas->deskripsi,
+                    'persentase_tugas' => $kelas->persentase_tugas,
+                    'persentase_uts' => $kelas->persentase_uts,
+                    'persentase_uas' => $kelas->persentase_uas,
+                    'theme' => $theme,
+                    'dosen' => [
+                        'nama_lengkap' => $kelas->dosen?->user?->nama_lengkap,
+                        'email' => $kelas->dosen?->user?->email,
+                        'avatar' => $kelas->dosen?->user?->avatar,
+                    ],
+                    'mata_kuliah' => [
+                        'nama_mk' => $kelas->mataKuliah?->nama_mk,
+                        'sks' => $kelas->mataKuliah?->sks,
+                        'jenis_mk' => $kelas->mataKuliah?->jenis_mk,
+                    ],
+                    'semester' => [
+                        'nama_semester' => $kelas->semester?->nama_semester,
+                        'status_aktif' => $kelas->semester?->status_aktif,
+                        'tanggal_mulai' => optional($kelas->semester?->tanggal_mulai)->toDateString(),
+                        'tanggal_selesai' => optional($kelas->semester?->tanggal_selesai)->toDateString(),
+                    ],
+                    'counts' => [
+                        'materi' => count($materis),
+                        'penilaian' => count($penilaiansRaw),
+                        'anggota' => $totalAnggota,
+                    ],
+                ],
+                'materis' => $materis,
+                'penilaians_raw' => $penilaiansRaw,
+                'anggota' => $anggota
+            ];
+        });
+
+        // Extract data dari cache
+        $materis = $cachedKelasData['materis'];
+        $penilaiansRaw = collect($cachedKelasData['penilaians_raw']);
+        $anggota = $cachedKelasData['anggota'];
+        $kelasData = $cachedKelasData['kelas_info'];
+
+        // Ambil daftar ID penilaian untuk mempermudah query privat (Ambi Array Murni)
+        $penilaianIds = $penilaiansRaw->pluck('id')->all();
+
+        // =========================================================================
+        // BAGIAN 2: QUERY KILAT PRIVAT (Real-time DB)
+        // =========================================================================
         $anggotaKelasRecord = DB::table('anggota_kelases')
             ->where('kelas_id', $kelas->id)
             ->where('mahasiswa_id', $mahasiswaId)
@@ -63,24 +173,14 @@ class KelasDetailController extends Controller
             ->where('kelas_id', $kelas->id)
             ->exists();
 
-        $hasSubmissions = DB::table('pengumpulans')
-            ->where('mahasiswa_id', $mahasiswaId)
-            ->whereIn('penilaian_id', function ($q) use ($kelas) {
-                $q->select('id')->from('penilaians')->where('kelas_id', $kelas->id);
-            })
-            ->exists();
+        $hasSubmissions = false;
+        if (!empty($penilaianIds)) {
+            $hasSubmissions = DB::table('pengumpulans')
+                ->where('mahasiswa_id', $mahasiswaId)
+                ->whereIn('penilaian_id', $penilaianIds)
+                ->exists();
+        }
 
-        $theme = $this->themeFor($kelas->uuid ?? (string) $kelas->id);
-
-        $totalAnggota = $kelas->anggotaKelases()->count();
-
-        $kelas->load([
-            'dosen.user:id,nama_lengkap,email,avatar',
-            'mataKuliah:id,nama_mk,sks,jenis_mk',
-            'semester:id,nama_semester,status_aktif,tanggal_mulai,tanggal_selesai',
-        ]);
-
-        // GANTI BAGIAN INI di KelasDetailController.php:
         $nilaiPribadi = DB::table('anggota_kelases')
             ->join('mahasiswas', 'anggota_kelases.mahasiswa_id', '=', 'mahasiswas.id')
             ->leftJoin('users', 'mahasiswas.user_id', '=', 'users.id')
@@ -102,8 +202,7 @@ class KelasDetailController extends Controller
                 'rekap_nilais.nilai_akhir_angka',
                 'rekap_nilais.nilai_huruf',
                 'rekap_nilais.nilai_indeks',
-            ])
-            ->first();
+            ])->first();
 
         $myNilai = null;
         if ($nilaiPribadi) {
@@ -124,120 +223,42 @@ class KelasDetailController extends Controller
             ];
         }
 
-        $materis = $kelas->materis()
-            ->latest()
-            ->get()
-            ->map(fn($m) => [
-                'id' => $m->id,
-                'judul' => $m->judul,
-                'deskripsi' => $m->deskripsi,
-                'file_path' => $m->file_path,
-                'link_url' => $m->link_url,
-                'created_at' => optional($m->created_at)->toDateTimeString(),
-            ]);
-
-        $penilaiansRaw = $kelas->penilaians()
-            ->where('mode_penilaian', 'online') // <--- Hanya ambil yang online
-            ->latest()
-            ->get(['id', 'uuid', 'judul', 'instruksi', 'kategori', 'mode_penilaian', 'tenggat_waktu', 'created_at']);
-
-        $pengumpulanByPenilaian = DB::table('pengumpulans')
-            ->where('mahasiswa_id', $mahasiswaId)
-            ->whereIn('penilaian_id', $penilaiansRaw->pluck('id'))
-            ->get(['penilaian_id', 'waktu_mulai', 'waktu_selesai', 'nilai_total'])
-            ->keyBy('penilaian_id');
+        $pengumpulanByPenilaian = collect();
+        if (!empty($penilaianIds)) {
+            $pengumpulanByPenilaian = DB::table('pengumpulans')
+                ->where('mahasiswa_id', $mahasiswaId)
+                ->whereIn('penilaian_id', $penilaianIds)
+                ->get(['penilaian_id', 'waktu_mulai', 'waktu_selesai', 'nilai_total'])
+                ->keyBy('penilaian_id');
+        }
 
         $penilaians = $penilaiansRaw->map(function ($p) use ($pengumpulanByPenilaian) {
-            $peng = $pengumpulanByPenilaian->get($p->id);
-
+            $peng = $pengumpulanByPenilaian->get($p['id']);
             return [
-                'id' => $p->id,
-                'uuid' => $p->uuid,
-                'judul' => $p->judul,
-                'instruksi' => $p->instruksi,
-                'kategori' => $p->kategori,
-                'mode_penilaian' => $p->mode_penilaian,
-                'tenggat_waktu' => optional($p->tenggat_waktu)->toDateTimeString(),
-                'created_at' => optional($p->created_at)->toDateTimeString(),
+                'id' => $p['id'],
+                'uuid' => $p['uuid'],
+                'judul' => $p['judul'],
+                'instruksi' => $p['instruksi'],
+                'kategori' => $p['kategori'],
+                'mode_penilaian' => $p['mode_penilaian'],
+                'tenggat_waktu' => $p['tenggat_waktu'],
+                'created_at' => $p['created_at'],
                 'my' => [
                     'started_at' => $peng?->waktu_mulai ? (string) $peng->waktu_mulai : null,
                     'submitted_at' => $peng?->waktu_selesai ? (string) $peng->waktu_selesai : null,
                     'nilai_total' => $peng?->nilai_total !== null ? (float) $peng->nilai_total : null,
-                    'status' => $peng
-                        ? ($peng->waktu_selesai ? 'submitted' : 'in_progress')
-                        : 'not_started',
+                    'status' => $peng ? ($peng->waktu_selesai ? 'submitted' : 'in_progress') : 'not_started',
                 ],
             ];
         });
 
-        // ✅ Anggota + avatar HARUS ikut di user
-        $anggota = $kelas->anggotaKelases()
-            ->with([
-                'mahasiswa:id,uuid,nim,user_id',
-                'mahasiswa.user:id,nama_lengkap,email,avatar',
-            ])
-            ->latest('tanggal_gabung')
-            ->get()
-            ->map(fn($a) => [
-                'id' => $a->id,
-                'tanggal_gabung' => optional($a->tanggal_gabung)->toDateTimeString(),
-                'mahasiswa' => [
-                    'uuid' => $a->mahasiswa?->uuid,
-                    'nim' => $a->mahasiswa?->nim,
-                    'user_id' => $a->mahasiswa?->user_id,
-                    'nama_lengkap' => $a->mahasiswa?->user?->nama_lengkap,
-                    'email' => $a->mahasiswa?->user?->email,
-                    'avatar' => $a->mahasiswa?->user?->avatar,
-                ],
-            ]);
-
-        // dd([
-        //     'kelas_id' => $kelas->id,
-        //     'mahasiswa_id' => $mahasiswaId,
-        //     'nilaiPribadi' => $nilaiPribadi,
-        //     'exists_anggota' => DB::table('anggota_kelases')
-        //         ->where('kelas_id', $kelas->id)
-        //         ->where('mahasiswa_id', $mahasiswaId)
-        //         ->count()
-        // ]);
-
         return Inertia::render('Mahasiswa/Kelas/Show', [
-            'kelas' => [
-                'id' => $kelas->id,
-                'uuid' => $kelas->uuid,
-                'nama_kelas' => $kelas->nama_kelas,
-                'deskripsi' => $kelas->deskripsi,
-                'persentase_tugas' => $kelas->persentase_tugas, // ✅ TAMBAH
-                'persentase_uts' => $kelas->persentase_uts, // ✅ TAMBAH
-                'persentase_uas' => $kelas->persentase_uas,
-                'theme' => $theme,
-                'dosen' => [
-                    'nama_lengkap' => $kelas->dosen?->user?->nama_lengkap,
-                    'email' => $kelas->dosen?->user?->email,
-                    'avatar' => $kelas->dosen?->user?->avatar,
-                ],
-                'mata_kuliah' => [
-                    'nama_mk' => $kelas->mataKuliah?->nama_mk,
-                    'sks' => $kelas->mataKuliah?->sks,
-                    'jenis_mk' => $kelas->mataKuliah?->jenis_mk,
-                ],
-                'semester' => [
-                    'nama_semester' => $kelas->semester?->nama_semester,
-                    'status_aktif' => $kelas->semester?->status_aktif,
-                    'tanggal_mulai' => optional($kelas->semester?->tanggal_mulai)->toDateString(),
-                    'tanggal_selesai' => optional($kelas->semester?->tanggal_selesai)->toDateString(),
-                ],
-                'counts' => [
-                    'materi' => $materis->count(),
-                    'penilaian' => $penilaians->count(),
-                    'anggota' => $totalAnggota,
-                ],
-            ],
-            'materis' => $materis,
-            'penilaians' => $penilaians,
-            'anggota' => $anggota,
-            'my_nilai' => $myNilai,
-            'anggota_kelas_id' => $anggotaKelasRecord?->id,           // ← tambah
+            'kelas'            => $kelasData,
+            'materis'          => $materis,
+            'penilaians'       => $penilaians,
+            'anggota'          => $anggota,
+            'my_nilai'         => $myNilai,
+            'anggota_kelas_id' => $anggotaKelasRecord?->id,
             'can_leave'        => !$hasGrades && !$hasSubmissions,
         ]);
     }

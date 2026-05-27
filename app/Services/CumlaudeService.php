@@ -35,10 +35,11 @@ class CumlaudeService
             'm.angkatan',
             'u.nama_lengkap',
             'j.nama_jurusan',
+            'j.jenjang', // ✅ Sudah benar mengambil data jenjang
         ])->get();
 
         return $kandidat
-            ->filter(fn($mhs) => $this->cekLulusTepat($mhs->mahasiswa_id))
+            ->filter(fn($mhs) => $this->cekLulusTepat($mhs)) // ✅ PERBAIKAN: Kirim seluruh objek $mhs
             ->filter(fn($mhs) => $this->cekTidakRekos($mhs->mahasiswa_id))
             ->filter(fn($mhs) => $this->cekNilaiMinimal($mhs->mahasiswa_id))
             ->map(fn($mhs)    => $this->enrichData($mhs))
@@ -52,17 +53,21 @@ class CumlaudeService
     }
 
     // ---------------------------------------------------------------
-    // Syarat 2: Lulus tepat waktu (≤ 8 semester)
+    // Syarat 2: Lulus tepat waktu (S1 ≤ 8 semester, D3 ≤ 6 semester)
     // ---------------------------------------------------------------
-    private function cekLulusTepat(int $mahasiswaId): bool
+    private function cekLulusTepat(object $mhs): bool // ✅ PERBAIKAN: Ubah tipe parameter jadi object
     {
+        $jenjang = strtoupper(trim($mhs->jenjang));
+
+        $maksSemester = ($jenjang === 'D3') ? 6 : 8;
+
         $jumlahSemester = DB::table('anggota_kelases as ak')
             ->join('kelases as k', 'k.id', '=', 'ak.kelas_id')
-            ->where('ak.mahasiswa_id', $mahasiswaId)
+            ->where('ak.mahasiswa_id', $mhs->mahasiswa_id) // ✅ Gunakan $mhs->mahasiswa_id
             ->distinct()
             ->count('k.semester_id');
 
-        return $jumlahSemester <= 8;
+        return $jumlahSemester <= $maksSemester;
     }
 
     // ---------------------------------------------------------------
@@ -84,12 +89,10 @@ class CumlaudeService
     // ---------------------------------------------------------------
     private function cekNilaiMinimal(int $mahasiswaId): bool
     {
-        // Sumber 1: nilai huruf langsung dari rekap_nilais
         $nilaiRekap = DB::table('rekap_nilais')
             ->where('mahasiswa_id', $mahasiswaId)
             ->pluck('nilai_huruf');
 
-        // Sumber 2: konversi nilai_angka dari bimbingans → huruf
         $nilaiBimbingan = DB::table('bimbingans')
             ->where('mahasiswa_id', $mahasiswaId)
             ->where('status', 'approved')
@@ -113,7 +116,6 @@ class CumlaudeService
     // ---------------------------------------------------------------
     private function enrichData(object $mhs): object
     {
-        // [PERBAIKAN]: Tambahkan select 'rn.nilai_huruf' untuk hitung jumlah A
         $rekapMK = DB::table('rekap_nilais as rn')
             ->join('mata_kuliahs as mk', 'mk.id', '=', 'rn.mata_kuliah_id')
             ->where('rn.mahasiswa_id', $mhs->mahasiswa_id)
@@ -137,18 +139,15 @@ class CumlaudeService
         $totalSks   = 0;
         $totalNilaiA = 0;
 
-        // Iterasi rekap perkuliahan reguler
         foreach ($rekapMK as $r) {
             $totalBobot += $r->nilai_indeks * $r->sks;
             $totalSks   += $r->sks;
 
-            // [PERBAIKAN]: Hitung total yang dapat nilai 'A'
             if (trim($r->nilai_huruf) === 'A') {
                 $totalNilaiA++;
             }
         }
 
-        // Iterasi rekap bimbingan (seperti skripsi/magang)
         foreach ($rekapBimbingan as $b) {
             $indeks = $this->konversiIndeks($b->nilai_angka);
             $huruf  = $this->konversiHuruf($b->nilai_angka);
@@ -156,29 +155,20 @@ class CumlaudeService
             $totalBobot += $indeks * $b->sks;
             $totalSks   += $b->sks;
 
-            // [PERBAIKAN]: Hitung total yang dapat nilai 'A'
             if ($huruf === 'A') {
                 $totalNilaiA++;
             }
         }
 
         $mhs->ipk = $totalSks > 0 ? round($totalBobot / $totalSks, 2) : 0;
-        $mhs->total_nilai_a = $totalNilaiA; // Simpan untuk Tiebreaker
+        $mhs->total_nilai_a = $totalNilaiA;
 
-        // Tiebreaker 1: cari MK Spesial dari bimbingans yang ada kata "skripsi"
-        // Tiebreaker 1: cari MK Spesial dari bimbingans
         $nilaiSkripsi = $rekapBimbingan
             ->where('jenis_mk', 'Spesial')
             ->sortByDesc(fn($b) => [
-                // Prioritas Utama (Nilai 2): Mengandung "skripsi" tapi BUKAN "pra" atau "proposal"
                 (str_contains(strtolower($b->nama_mk), 'skripsi') &&
                     !str_contains(strtolower($b->nama_mk), 'pra') &&
-                    !str_contains(strtolower($b->nama_mk), 'proposal')) ? 2 :
-
-                    // Prioritas Kedua (Nilai 1): Mengandung kata "skripsi" (termasuk Pra Skripsi)
-                    (str_contains(strtolower($b->nama_mk), 'skripsi') ? 1 : 0),
-
-                // Terakhir baru bandingkan nilainya
+                    !str_contains(strtolower($b->nama_mk), 'proposal')) ? 2 : (str_contains(strtolower($b->nama_mk), 'skripsi') ? 1 : 0),
                 $b->nilai_angka,
             ])
             ->first();

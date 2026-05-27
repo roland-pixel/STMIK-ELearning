@@ -107,6 +107,8 @@ class InputNilaiManualController extends Controller
                 $this->regenerateRekapNilai($lastPengumpulanId);
             }
 
+            // \Illuminate\Support\Facades\Cache::forget("kelas:global_detail:{$kelas_id}");
+
             DB::commit();
             return redirect()->route('admin.input_nilai_manual.index')->with('success', 'Nilai berhasil disimpan.');
         } catch (\Exception $e) {

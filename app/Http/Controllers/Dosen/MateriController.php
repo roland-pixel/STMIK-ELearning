@@ -8,6 +8,7 @@ use App\Models\Materi;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 
 class MateriController extends Controller
@@ -25,18 +26,16 @@ class MateriController extends Controller
         abort_if((int) $materi->kelas_id !== (int) $kelas->id, 404, 'Materi tidak ditemukan di kelas ini.');
     }
 
-    // ✅ PERBAIKAN UTAMA DI SINI
     public function index(Request $request, Kelas $kelas)
     {
         $this->ensureOwner($kelas);
 
-        $openId = $request->query('open'); // ?open=123
+        $openId = $request->query('open');
 
         $query = Materi::query()
             ->where('kelas_id', $kelas->id)
             ->latest();
 
-        // kalau ada open, filter hanya materi itu
         if (!empty($openId)) {
             $query->where('id', $openId);
         }
@@ -53,7 +52,6 @@ class MateriController extends Controller
             ];
         });
 
-        // ✅ kalau openId ada tapi gak ketemu (atau bukan materi kelas ini), balikin 404 biar jelas
         if (!empty($openId) && $materis->count() === 0) {
             abort(404, 'Materi tidak ditemukan di kelas ini.');
         }
@@ -62,10 +60,10 @@ class MateriController extends Controller
             'kelas' => [
                 'id' => $kelas->id,
                 'uuid' => $kelas->uuid,
-                'nama' => $kelas->nama ?? null,
+                'nama' => $kelas->nama_kelas ?? $kelas->nama ?? null, // Fallback pengaman nama kolom
             ],
             'materis' => $materis,
-            'open' => !empty($openId) ? (int) $openId : null, // opsional untuk UI
+            'open' => !empty($openId) ? (int) $openId : null,
         ]);
     }
 
@@ -86,7 +84,12 @@ class MateriController extends Controller
             'judul' => ['required', 'string', 'max:255'],
             'deskripsi' => ['nullable', 'string'],
             'link_url' => ['nullable', 'url', 'max:2048'],
-            'file' => ['nullable', 'file', 'max:10240'], // 10MB
+            'file' => [
+                'nullable',
+                'file',
+                'mimes:pdf,docx,doc,pptx,ppt,xlsx,xls,zip,rar,png,jpg,jpeg',
+                'max:10240'
+            ],
         ]);
 
         if (!$request->hasFile('file') && empty($data['link_url'])) {
@@ -107,6 +110,8 @@ class MateriController extends Controller
             'file_path' => $filePath,
             'link_url' => $data['link_url'] ?? null,
         ]);
+
+        // Cache::forget("kelas:global_detail:{$kelas->id}");
 
         return redirect()
             ->route('dosen.kelas.show', $kelas->uuid)
@@ -144,9 +149,10 @@ class MateriController extends Controller
         $filePath = $materi->file_path;
         $linkUrl  = $materi->link_url;
 
+        // ✅ Perbaikan logika update link agar tidak sengaja ter-overwrite null
         if ($removeLink) {
             $linkUrl = null;
-        } else {
+        } elseif ($request->has('link_url')) {
             $linkUrl = $data['link_url'] ?? null;
         }
 
@@ -175,6 +181,8 @@ class MateriController extends Controller
             'link_url' => $linkUrl,
         ]);
 
+        // Cache::forget("kelas:global_detail:{$materi->kelas_id}");
+
         return redirect()
             ->route('dosen.kelas.show', $kelas->uuid)
             ->with('success', 'Materi berhasil diperbarui.');
@@ -190,6 +198,8 @@ class MateriController extends Controller
         }
 
         $materi->delete();
+
+        // Cache::forget("kelas:global_detail:{$materi->kelas_id}");
 
         return redirect()
             ->route('dosen.kelas.show', $kelas->uuid)

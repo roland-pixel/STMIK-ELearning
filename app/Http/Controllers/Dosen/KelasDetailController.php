@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Dosen;
 
 use App\Http\Controllers\Controller;
+use App\Models\AnggotaKelas;
 use App\Models\Kelas;
 use App\Models\Mahasiswa;
+use App\Models\RekapNilai;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -69,18 +72,18 @@ class KelasDetailController extends Controller
                 'identifier' => 'Mahasiswa ini sudah terdaftar di dalam kelas.'
             ]);
         }
-
-        // 5. Eksekusi Transaction
+        // Gunakan Model Eloquent Anda (Pastikan sudah di-use di atas: use App\Models\AnggotaKelas; dan use App\Models\RekapNilai;)
         DB::transaction(function () use ($kelas, $mahasiswa) {
-            DB::table('anggota_kelases')->insert([
+
+            // 1. Menggunakan Model Eloquent AnggotaKelas -> Memicu Observer!
+            AnggotaKelas::create([
                 'kelas_id' => $kelas->id,
                 'mahasiswa_id' => $mahasiswa->id,
                 'tanggal_gabung' => now(),
-                'created_at' => now(),
-                'updated_at' => now(),
             ]);
 
-            DB::table('rekap_nilais')->insert([
+            // 2. Menggunakan Model Eloquent RekapNilai
+            RekapNilai::create([
                 'mahasiswa_id' => $mahasiswa->id,
                 'semester_id' => $kelas->semester_id,
                 'mata_kuliah_id' => $kelas->mata_kuliah_id,
@@ -91,10 +94,13 @@ class KelasDetailController extends Controller
                 'nilai_akhir_angka' => 0,
                 'nilai_huruf' => 'E',
                 'nilai_indeks' => 0,
-                'created_at' => now(),
-                'updated_at' => now(),
             ]);
         });
+
+        // Baris ini: // Cache::forget("kelas:global_detail:{$kelas->id}"); 
+        // Sekarang AMAN untuk tetap dikomentari/dihapus karena Eloquent di atas sudah otomatis memicu Observer!
+
+        // Cache::forget("kelas:global_detail:{$kelas->id}");
 
         return back()->with('success', 'Mahasiswa berhasil ditambahkan.');
     }

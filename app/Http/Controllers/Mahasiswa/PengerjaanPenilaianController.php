@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Carbon\Carbon;
+// 1. Import Fasad Cache
+use Illuminate\Support\Facades\Cache;
 
 class PengerjaanPenilaianController extends Controller
 {
@@ -26,9 +28,12 @@ class PengerjaanPenilaianController extends Controller
         $mahasiswaId = Auth::user()?->mahasiswa?->id;
         abort_if(!$mahasiswaId, 403, 'Profil mahasiswa tidak ditemukan.');
 
-        $isEnrolled = AnggotaKelas::where('kelas_id', $kelas->id)
-            ->where('mahasiswa_id', $mahasiswaId)
-            ->exists();
+        // Menggunakan caching untuk status pendaftaran mahasiswa agar tidak hit DB terus-menerus
+        $isEnrolled = Cache::remember("kelas:{$kelas->id}:mhs:{$mahasiswaId}:enrolled", 3600, function () use ($kelas, $mahasiswaId) {
+            return AnggotaKelas::where('kelas_id', $kelas->id)
+                ->where('mahasiswa_id', $mahasiswaId)
+                ->exists();
+        });
 
         abort_if(!$isEnrolled, 403, 'Anda tidak terdaftar di kelas ini.');
 
@@ -42,14 +47,17 @@ class PengerjaanPenilaianController extends Controller
     {
         $mahasiswaId = $this->ensureEnrolled($kelas);
 
+        // Pengumpulan bersifat dinamis (real-time per mahasiswa), jangan dicache permanen/lama
         $pengumpulan = Pengumpulan::where('penilaian_id', $penilaian->id)
             ->where('mahasiswa_id', $mahasiswaId)
             ->first();
 
-        // Cek apakah ada soal selain PG
-        $hasManualGrading = $penilaian->pertanyaans()
-            ->whereIn('jenis_pertanyaan', ['essai', 'upload_file'])
-            ->exists();
+        // Cache pengecekan tipe soal di penilaian ini (Sama untuk semua mahasiswa)
+        $hasManualGrading = Cache::remember("penilaian:{$penilaian->id}:has_manual_grading", 3600, function () use ($penilaian) {
+            return $penilaian->pertanyaans()
+                ->whereIn('jenis_pertanyaan', ['essai', 'upload_file'])
+                ->exists();
+        });
 
         return Inertia::render('Mahasiswa/Kelas/Tugas/Penilaian/Online/Show', [
             'kelas' => $kelas->only(['uuid', 'nama_kelas']),
@@ -60,7 +68,6 @@ class PengerjaanPenilaianController extends Controller
                 'kategori' => $penilaian->kategori,
                 'tenggat_waktu' => $penilaian->tenggat_waktu,
                 'is_selesai' => $pengumpulan && $pengumpulan->waktu_selesai !== null,
-                // Nilai hanya tampil jika sudah selesai DAN isinya cuma PG
                 'nilai_total' => (!$hasManualGrading) ? $pengumpulan?->nilai_total : null,
                 'need_manual_grading' => $hasManualGrading,
             ]
@@ -74,42 +81,43 @@ class PengerjaanPenilaianController extends Controller
     {
         $mahasiswaId = $this->ensureEnrolled($kelas);
 
-        // 1. Cek tenggat waktu
         if ($penilaian->tenggat_waktu && Carbon::now()->isAfter($penilaian->tenggat_waktu)) {
             return back()->withErrors(['message' => 'Waktu pengerjaan sudah berakhir.']);
         }
 
-        // 2. Ambil atau buat data pengumpulan (untuk mencatat waktu_mulai)
         $pengumpulan = Pengumpulan::firstOrCreate(
             ['penilaian_id' => $penilaian->id, 'mahasiswa_id' => $mahasiswaId],
             ['uuid' => Str::uuid(), 'waktu_mulai' => Carbon::now()]
         );
 
-        // Jika sudah selesai, jangan izinkan buka soal lagi
         if ($pengumpulan->waktu_selesai) {
             return redirect()->route('mahasiswa.kelas.penilaian.online.show', [$kelas->uuid, $penilaian->uuid])
                 ->with('error', 'Anda sudah mengumpulkan tugas ini.');
         }
 
-        // 3. Load soal dan opsi (Sembunyikan is_benar untuk keamanan!)
-        $penilaian->load([
-            'pertanyaans' => fn($q) => $q->orderBy('nomor_urut'),
-            'pertanyaans.opsiJawabans' => fn($q) => $q->select('id', 'pertanyaan_id', 'teks_opsi'),
-            'pertanyaans.images'
-        ]);
+        // 🔥 OPTIMASI UTAMA: Cache seluruh struktur soal ujian di Redis
+        // Menghindari 280 mahasiswa melakukan Heavy Query Eager Loading (Relation database) secara bersamaan.
+        $cachedPenilaian = Cache::remember("penilaian:{$penilaian->id}:soal_lengkap", 1800, function () use ($penilaian) {
+            $penilaian->load([
+                'pertanyaans' => fn($q) => $q->orderBy('nomor_urut'),
+                'pertanyaans.opsiJawabans' => fn($q) => $q->select('id', 'pertanyaan_id', 'teks_opsi'),
+                'pertanyaans.images'
+            ]);
 
-        $penilaian->pertanyaans->transform(function ($pt) {
-            $pt->images->transform(function ($img) {
-                // Ini kuncinya: ubah path mentah jadi URL publik
-                $img->url = \Illuminate\Support\Facades\Storage::disk('public')->url($img->path);
-                return $img;
+            $penilaian->pertanyaans->transform(function ($pt) {
+                $pt->images->transform(function ($img) {
+                    $img->url = \Illuminate\Support\Facades\Storage::disk('public')->url($img->path);
+                    return $img;
+                });
+                return $pt;
             });
-            return $pt;
+
+            return $penilaian;
         });
 
         return Inertia::render('Mahasiswa/Kelas/Tugas/Penilaian/Online/Kerjakan', [
             'kelas' => $kelas,
-            'penilaian' => $penilaian,
+            'penilaian' => $cachedPenilaian, // Menggunakan data dari Redis
             'pengumpulan' => $pengumpulan
         ]);
     }
@@ -129,14 +137,12 @@ class PengerjaanPenilaianController extends Controller
             return abort(403, 'Jawaban sudah dikirim sebelumnya.');
         }
 
-        // ✅ FIX VALIDATION: Handle file array dengan index pertanyaan
         $request->validate([
             'jawaban' => 'required|array',
             'jawaban.*.pertanyaan_id' => 'required|exists:pertanyaans,id',
             'jawaban.*.opsi_jawaban_id' => 'nullable|exists:opsi_jawabans,id',
             'jawaban.*.text_jawaban' => 'nullable|string|max:1000',
-            // ✅ FIX: File validation per index array
-            'jawaban.*.file' => 'nullable|file|max:10240|mimes:jpg,jpeg,png,pdf,doc,docx,zip,txt,rar',
+            'jawaban.*.file' => 'nullable|file|max:10240|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx,zip,txt,rar',
         ]);
 
         DB::beginTransaction();
@@ -145,7 +151,11 @@ class PengerjaanPenilaianController extends Controller
             $this->regenerateRekapNilai($pengumpulan->id);
             DB::commit();
 
-            // ... success message ...
+            // 🔥 INVALIDASI CACHE: Hapus cache status agar halaman Rekap Nilai dosen / dashboard mhs ter-update
+            Cache::forget("kelas:{$kelas->id}:mhs:{$mahasiswaId}:enrolled");
+
+            return redirect()->route('mahasiswa.kelas.penilaian.online.show', [$kelas->uuid, $penilaian->uuid])
+                ->with('success', 'Jawaban berhasil dikirim.');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->withErrors(['message' => 'Terjadi kesalahan: ' . $e->getMessage()]);
@@ -154,20 +164,17 @@ class PengerjaanPenilaianController extends Controller
 
     private function simpanJawabanDanHitungNilai($request, $pengumpulan, $penilaian)
     {
-        foreach ($request->jawaban as $index => $item) {  // ✅ $index = 0,1,2,...
+        foreach ($request->jawaban as $index => $item) {
             $pertanyaan = $penilaian->pertanyaans()->find($item['pertanyaan_id']);
             $nilaiPerSoal = 0;
             $filePath = null;
 
-            // 🔥 FIX 1: Nama file BENAR SEKARANG!
-            $fileKey = "jawaban.{$index}.file";  // jawaban[0].file, jawaban[1].file
+            $fileKey = "jawaban.{$index}.file";
             if ($request->hasFile($fileKey)) {
                 $file = $request->file($fileKey);
-                $filePath = $file->store("jawaban/{$pengumpulan->uuid}", 'public');  // ✅ Nama folder lebih jelas
-                \Log::info("File uploaded: {$filePath}");  // Debug log
+                $filePath = $file->store("jawaban/{$pengumpulan->uuid}", 'public');
             }
 
-            // Auto-grading PG (tetap sama)
             if ($pertanyaan->jenis_pertanyaan === 'pilihan_ganda' && !empty($item['opsi_jawaban_id'])) {
                 $isCorrect = DB::table('opsi_jawabans')
                     ->where('id', $item['opsi_jawaban_id'])
@@ -183,7 +190,7 @@ class PengerjaanPenilaianController extends Controller
                 'pertanyaan_id' => $pertanyaan->id,
                 'opsi_jawaban_id' => $item['opsi_jawaban_id'] ?? null,
                 'text_jawaban' => $item['text_jawaban'] ?? null,
-                'file_jawaban' => $filePath,  // ✅ SEKARANG ISI!
+                'file_jawaban' => $filePath,
                 'nilai_per_soal' => $nilaiPerSoal,
             ]);
         }
@@ -192,9 +199,6 @@ class PengerjaanPenilaianController extends Controller
         $pengumpulan->update(['waktu_selesai' => Carbon::now()]);
     }
 
-    /**
-     * Hitung ulang nilai_total pengumpulan ✅ SAMA PERSIS
-     */
     private function updatePengumpulanTotal($pengumpulanId)
     {
         $data = JawabanDetail::select('jawaban_details.nilai_per_soal', 'pertanyaans.bobot_soal')
@@ -212,10 +216,6 @@ class PengerjaanPenilaianController extends Controller
         Pengumpulan::where('id', $pengumpulanId)->update(['nilai_total' => $nilaiTotal]);
     }
 
-    /**
-     * Regenerate rekap_nilais (OPTIMIZED & KRONOLOGIS)
-     * Tetap konsisten dengan aturan: 1 Kelas = 1 Record Nilai
-     */
     private function regenerateRekapNilai($pengumpulanId)
     {
         $pengumpulan = Pengumpulan::with(['penilaian.kelas', 'mahasiswa'])->find($pengumpulanId);
@@ -226,14 +226,12 @@ class PengerjaanPenilaianController extends Controller
         $kelas       = $pengumpulan->penilaian->kelas;
         if (!$kelas) return;
 
-        // 1. Ambil data pengumpulan mahasiswa di KELAS INI
         $semuaPengumpulan = Pengumpulan::whereHas('penilaian', fn($q) => $q->where('kelas_id', $kelasId))
             ->where('mahasiswa_id', $mahasiswaId)
             ->with('penilaian')
             ->get()
             ->groupBy('penilaian.kategori');
 
-        // 2. Hitung komponen nilai
         $totalTugasDiKelas = Penilaian::where('kelas_id', $kelasId)->where('kategori', 'tugas')->count();
         $sumNilaiTugas = $semuaPengumpulan->get('tugas', collect())->sum('nilai_total');
         $totalTugas = $totalTugasDiKelas > 0 ? round($sumNilaiTugas / $totalTugasDiKelas, 2) : 0;
@@ -241,7 +239,6 @@ class PengerjaanPenilaianController extends Controller
         $totalUts = $this->hitungRataRataKategori($semuaPengumpulan, 'uts');
         $totalUas = $this->hitungRataRataKategori($semuaPengumpulan, 'uas');
 
-        // 3. Hitung Nilai Akhir
         $nilaiAkhir = round(
             ($totalTugas * $kelas->persentase_tugas / 100) +
                 ($totalUts * $kelas->persentase_uts / 100) +
@@ -260,9 +257,6 @@ class PengerjaanPenilaianController extends Controller
             'nilai_indeks'      => $this->konversiIndeks($nilaiAkhir),
         ];
 
-        // 4. 🔥 SIMPAN/UPDATE UNIK PER KELAS
-        // Menggunakan updateOrCreate agar setiap kelas memiliki record nilai sendiri.
-        // Ini memastikan riwayat nilai mahasiswa tetap terjaga per semester/kelas.
         RekapNilai::updateOrCreate(
             [
                 'mahasiswa_id' => $mahasiswaId,

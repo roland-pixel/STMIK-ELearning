@@ -100,6 +100,8 @@ class PenilaianManualController extends Controller
                 $this->regenerateRekapNilai($pengumpulan->id);
             }
 
+            // \Illuminate\Support\Facades\Cache::forget("kelas:global_detail:{$kelas->id}");
+
             return redirect()->route('dosen.kelas.show', $kelas->uuid)
                 ->with('success', 'Penilaian manual berhasil dibuat.');
         });
@@ -216,6 +218,8 @@ class PenilaianManualController extends Controller
                 $this->regenerateRekapNilaiForMahasiswa($penilaian->id, $mahasiswaId);
             }
 
+            // \Illuminate\Support\Facades\Cache::forget("kelas:global_detail:{$penilaian->kelas_id}");
+
             return redirect()->route('dosen.kelas.show', $kelas->uuid)
                 ->with('success', 'Nilai berhasil disimpan!');
         });
@@ -226,25 +230,25 @@ class PenilaianManualController extends Controller
         $this->ensureOwner($kelas);
 
         return DB::transaction(function () use ($penilaian, $kelas) {
+            $kelasId = $kelas->id;
 
-            // ambil mahasiswa yang punya pengumpulan
+            // 1. Ambil list ID mahasiswa yang terlibat sebelum datanya dihapus
             $mahasiswaIds = Pengumpulan::where('penilaian_id', $penilaian->id)
-                ->pluck('mahasiswa_id');
+                ->pluck('mahasiswa_id')
+                ->toArray();
 
-            // hapus pengumpulan
-            Pengumpulan::where('penilaian_id', $penilaian->id)
-                ->delete();
+            // 2. Hapus data pengumpulan
+            Pengumpulan::where('penilaian_id', $penilaian->id)->delete();
 
-            // regenerate rekap tiap mahasiswa
+            // 3. Hapus data penilaian induk
+            $penilaian->delete();
+
+            // 4. Hitung ulang rekap nilai langsung menggunakan ID kelas dan ID mahasiswa
             foreach ($mahasiswaIds as $mahasiswaId) {
-                $this->regenerateRekapNilaiForMahasiswa(
-                    $penilaian->id,
-                    $mahasiswaId
-                );
+                $this->forceRegenerateRekap($kelasId, $mahasiswaId);
             }
 
-            // hapus penilaian
-            $penilaian->delete();
+            // \Illuminate\Support\Facades\Cache::forget("kelas:global_detail:{$penilaian->kelas_id}");
 
             return redirect()
                 ->route('dosen.kelas.show', $kelas->uuid)
@@ -354,5 +358,51 @@ class PenilaianManualController extends Controller
         if ($nilai >= 55) return 1.5;
         if ($nilai >= 40) return 1.0;
         return 0.0;
+    }
+    private function forceRegenerateRekap($kelasId, $mahasiswaId)
+    {
+        $kelas = Kelas::find($kelasId);
+        if (!$kelas) return;
+
+        // 1. Ambil semua sisa pengumpulan mahasiswa di kelas ini (yang tersisa setelah dihapus)
+        $semuaPengumpulan = Pengumpulan::whereHas('penilaian', fn($q) => $q->where('kelas_id', $kelasId))
+            ->where('mahasiswa_id', $mahasiswaId)
+            ->with('penilaian')
+            ->get()
+            ->groupBy('penilaian.kategori');
+
+        // 2. Hitung komponen sisa nilai tugas
+        $totalTugasDiKelas = Penilaian::where('kelas_id', $kelasId)->where('kategori', 'tugas')->count();
+        $sumNilaiTugas = $semuaPengumpulan->get('tugas', collect())->sum('nilai_total');
+        $totalTugas = $totalTugasDiKelas > 0 ? round($sumNilaiTugas / $totalTugasDiKelas, 2) : 0;
+
+        $totalUts = $this->hitungRataRataKategori($semuaPengumpulan, 'uts');
+        $totalUas = $this->hitungRataRataKategori($semuaPengumpulan, 'uas');
+
+        // 3. Hitung ulang Nilai Akhir Angka
+        $nilaiAkhir = round(
+            ($totalTugas * $kelas->persentase_tugas / 100) +
+                ($totalUts * $kelas->persentase_uts / 100) +
+                ($totalUas * $kelas->persentase_uas / 100),
+            2
+        );
+
+        // 4. Update data rekap (jika kosong nilainya akan otomatis menjadi 0)
+        RekapNilai::updateOrCreate(
+            [
+                'mahasiswa_id' => $mahasiswaId,
+                'kelas_id'     => $kelasId
+            ],
+            [
+                'semester_id'       => $kelas->semester_id,
+                'mata_kuliah_id'    => $kelas->mata_kuliah_id,
+                'total_tugas'       => $totalTugas,
+                'total_uts'         => $totalUts,
+                'total_uas'         => $totalUas,
+                'nilai_akhir_angka' => $nilaiAkhir,
+                'nilai_huruf'       => $this->konversiHuruf($nilaiAkhir),
+                'nilai_indeks'      => $this->konversiIndeks($nilaiAkhir),
+            ]
+        );
     }
 }

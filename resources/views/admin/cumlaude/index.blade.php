@@ -80,7 +80,8 @@
             <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 flex items-center gap-3">
                 <span class="text-amber-600 text-lg">💡</span>
                 <span class="text-xs text-amber-800 leading-tight">
-                    <strong>Kriteria:</strong> IPK ≥ 3.51, Min. B-, Tepat Waktu (≤ 8 Smt), Tidak Rekos, & Reguler/Malam.
+                    <strong>Kriteria:</strong> IPK ≥ 3.51, Min. B-, Tepat Waktu (S1 ≤ 8 Smt, D3 ≤ 6 Smt), Tidak Rekos, &
+                    Reguler/Malam.
                 </span>
             </div>
         </div>
@@ -126,7 +127,13 @@
 
                                 {{-- Jurusan --}}
                                 <td class="px-6 py-4">
-                                    <span class="text-sm text-slate-700 font-medium">{{ $mhs->nama_jurusan }}</span>
+                                    <div class="flex items-center gap-2">
+                                        <span
+                                            class="text-xs px-2 py-0.5 bg-slate-200 text-slate-800 font-bold rounded-md font-mono">
+                                            {{ $mhs->jenjang }}
+                                        </span>
+                                        <span class="text-sm text-slate-700 font-medium">{{ $mhs->nama_jurusan }}</span>
+                                    </div>
                                 </td>
 
                                 {{-- Angkatan --}}

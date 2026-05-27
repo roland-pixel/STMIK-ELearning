@@ -138,6 +138,7 @@ class KelasController extends Controller
                     Log::info("Bobot nilai kelas {$kelase->id} berubah, menghitung ulang rekap.");
                     $this->regenerateAllRekapNilaiKelas($kelase);
                 }
+                \Illuminate\Support\Facades\Cache::forget("kelas:global_detail:{$kelase->id}");
             });
 
             return redirect()->route('admin.kelases.index')->with('success', 'Kelas diperbarui dan rekap nilai disinkronkan.');
@@ -206,6 +207,8 @@ class KelasController extends Controller
             }
 
             $kelase->delete();
+
+            \Illuminate\Support\Facades\Cache::forget("kelas:global_detail:{$kelase->id}");
 
             return redirect()
                 ->route('admin.kelases.index')

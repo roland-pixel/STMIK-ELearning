@@ -7,6 +7,7 @@ use App\Models\AnggotaKelas;
 use App\Models\RekapNilai;
 use App\Models\Pengumpulan;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class AnggotaKelasController extends Controller
 {
@@ -44,6 +45,8 @@ class AnggotaKelasController extends Controller
 
         // 5. Jika bersih, hapus keanggotaan
         $anggota->delete();
+
+        // Cache::forget("kelas:global_detail:{$kelasId}");
 
         return redirect()->route('mahasiswa.dashboard') // Sesuaikan route dashboard/index kelasmu
             ->with('success', 'Kamu telah berhasil keluar dari kelas.');

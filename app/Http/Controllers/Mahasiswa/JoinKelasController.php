@@ -4,8 +4,9 @@ namespace App\Http\Controllers\Mahasiswa;
 
 use App\Http\Controllers\Controller;
 use App\Models\Kelas;
+use App\Models\AnggotaKelas; // Pastikan Model ini di-import
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\QueryException;
 
 class JoinKelasController extends Controller
 {
@@ -13,15 +14,18 @@ class JoinKelasController extends Controller
     {
         $user = $request->user();
 
+        // Validasi otoritas
         abort_if($user->peran !== 'mahasiswa', 403);
         abort_if(!$user->mahasiswa, 403, 'Akun mahasiswa belum terhubung ke data mahasiswa.');
 
+        // Validasi input
         $data = $request->validate([
             'kode_gabung' => ['required', 'string', 'max:255'],
         ]);
 
         $kode = trim($data['kode_gabung']);
 
+        // Cari kelas yang aktif
         $kelas = Kelas::query()
             ->where('kode_gabung', $kode)
             ->whereHas('semester', fn($q) => $q->where('status_aktif', 'active'))
@@ -29,26 +33,35 @@ class JoinKelasController extends Controller
 
         if (!$kelas) {
             return back()->withErrors([
-                'kode_gabung' => 'Kode gabung tidak ditemukan / kelas tidak aktif.',
+                'kode_gabung' => 'Kode gabung tidak ditemukan atau kelas tidak aktif.',
             ])->withInput();
         }
 
         $mahasiswaId = $user->mahasiswa->id;
 
-        // insert pivot, aman dari double join karena ada unique(kelas_id, mahasiswa_id)
         try {
-            DB::table('anggota_kelases')->insert([
-                'kelas_id' => $kelas->id,
+            // Menggunakan Eloquent Model agar Observer terpicu otomatis
+            // Observer akan membuat record di rekap_nilais jika ada logika di sana
+            AnggotaKelas::create([
+                'kelas_id'     => $kelas->id,
                 'mahasiswa_id' => $mahasiswaId,
                 'tanggal_gabung' => now(),
-                'created_at' => now(),
-                'updated_at' => now(),
             ]);
-        } catch (\Throwable $e) {
-            // biasanya duplicate entry (sudah gabung)
-            return back()->withErrors([
-                'kode_gabung' => 'Kamu sudah terdaftar di kelas ini.',
-            ])->withInput();
+
+            // Catatan: Tidak perlu manual insert created_at/updated_at 
+            // karena Eloquent menanganinya otomatis.
+
+        } catch (QueryException $e) {
+            // Jika error karena constraint database (misalnya sudah ada di kelas)
+            // Error code 23000 adalah standar untuk integrity constraint violation
+            if ($e->getCode() == 23000) {
+                return back()->withErrors([
+                    'kode_gabung' => 'Kamu sudah terdaftar di kelas ini.',
+                ])->withInput();
+            }
+
+            // Jika error lain, lempar error aslinya
+            throw $e;
         }
 
         return redirect()

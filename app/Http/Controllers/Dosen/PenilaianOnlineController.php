@@ -335,6 +335,9 @@ class PenilaianOnlineController extends Controller
                     }
                 }
             }
+
+            // \Illuminate\Support\Facades\Cache::forget("kelas:global_detail:{$kelas->id}");
+
             DB::commit();
             return redirect()->route('dosen.kelas.show', $kelas->uuid)->with('success', 'Penilaian online berhasil dibuat.');
         } catch (\Throwable $e) {
@@ -522,6 +525,8 @@ class PenilaianOnlineController extends Controller
                 }
             }
 
+            // \Illuminate\Support\Facades\Cache::forget("kelas:global_detail:{$penilaian->kelas_id}");
+
             return redirect()->route('dosen.kelas.show', $kelas->uuid)
                 ->with('success', 'Penilaian online berhasil diperbarui.');
         });
@@ -563,6 +568,8 @@ class PenilaianOnlineController extends Controller
             $penilaian->delete();
 
             DB::commit();
+
+            // \Illuminate\Support\Facades\Cache::forget("kelas:global_detail:{$penilaian->kelas_id}");
 
             return redirect()
                 ->route('dosen.kelas.show', $kelas->uuid)

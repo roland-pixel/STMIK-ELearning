@@ -27,27 +27,35 @@ class MahasiswaKHSController extends Controller
             ]);
         }
 
-        // Hanya tampilkan semester di mana mahasiswa terdaftar atau memiliki rekap/bimbingan
-        $semesters = Semester::where(function ($query) use ($mahasiswa) {
-            $query->whereHas('kelases.anggotaKelases', fn($q) => $q->where('mahasiswa_id', $mahasiswa->id))
-                ->orWhereRaw("id IN (SELECT semester_id FROM rekap_nilais WHERE mahasiswa_id = ?)", [$mahasiswa->id])
-                ->orWhereRaw("id IN (SELECT semester_id FROM bimbingans WHERE mahasiswa_id = ? AND status = 'approved')", [$mahasiswa->id]);
-        })
-            ->orderBy('nama_semester', 'desc')
+        // OPTIMASI: Satukan pengecekan 'has_khs' langsung di dalam satu query database
+        $semesters = DB::table('semesters as s')
+            ->leftJoin('kelases as k', 'k.semester_id', '=', 's.id')
+            ->leftJoin('anggota_kelases as ak', function ($join) use ($mahasiswa) {
+                $join->on('ak.kelas_id', '=', 'k.id')
+                    ->where('ak.mahasiswa_id', '=', $mahasiswa->id);
+            })
+            ->where(function ($query) use ($mahasiswa) {
+                $query->whereNotNull('ak.id')
+                    ->orWhereRaw("s.id IN (SELECT semester_id FROM rekap_nilais WHERE mahasiswa_id = ?)", [$mahasiswa->id])
+                    ->orWhereRaw("s.id IN (SELECT semester_id FROM bimbingans WHERE mahasiswa_id = ? AND status = 'approved')", [$mahasiswa->id]);
+            })
+            ->select([
+                's.id',
+                's.nama_semester',
+                's.status_aktif',
+                's.tanggal_mulai',
+                's.tanggal_selesai',
+            ])
+            // Subquery cek nilai umum
+            ->selectRaw("EXISTS(SELECT 1 FROM rekap_nilais WHERE mahasiswa_id = ? AND semester_id = s.id) as has_umum", [$mahasiswa->id])
+            // Subquery cek nilai spesial
+            ->selectRaw("EXISTS(SELECT 1 FROM bimbingans WHERE mahasiswa_id = ? AND semester_id = s.id AND status = 'approved') as has_spesial", [$mahasiswa->id])
+            ->distinct()
+            ->orderBy('s.nama_semester', 'desc')
             ->get()
-            ->map(function ($semester) use ($mahasiswa) {
-                $hasUmum = DB::table('rekap_nilais')
-                    ->where('mahasiswa_id', $mahasiswa->id)
-                    ->where('semester_id', $semester->id)
-                    ->exists();
-
-                $hasSpesial = DB::table('bimbingans')
-                    ->where('mahasiswa_id', $mahasiswa->id)
-                    ->where('semester_id', $semester->id)
-                    ->where('status', 'approved')
-                    ->exists();
-
-                $semester->has_khs = $hasUmum || $hasSpesial;
+            ->map(function ($semester) {
+                // Konversi hasil subquery murni menjadi boolean / flag display
+                $semester->has_khs = (bool) $semester->has_umum || (bool) $semester->has_spesial;
                 $semester->status_display = $semester->status_aktif === 'active' ? 'Aktif' : 'Arsip';
                 return $semester;
             });
@@ -59,11 +67,13 @@ class MahasiswaKHSController extends Controller
     }
 
     /**
-     * Helper: Gabungkan Matkul Umum & Spesial (Meniru persis logika Admin)
+     * Helper: Gabungkan Matkul Umum & Spesial (Gunakan Query Builder - Sudah Sangat Tepat)
      */
     private function getCombinedKHSData($mahasiswaId, $semesterId)
     {
-        $mahasiswa = Mahasiswa::find($mahasiswaId);
+        $mahasiswa = DB::table('mahasiswas')->where('id', $mahasiswaId)->first(['jurusan_id']);
+        if (!$mahasiswa) return collect();
+
         $jurusanId = $mahasiswa->jurusan_id;
 
         // 1. Matkul Umum
@@ -152,9 +162,6 @@ class MahasiswaKHSController extends Controller
         return 0.0;
     }
 
-    /**
-     * Helper Lokal untuk mapping nama Ketua Jurusan secara dinamis dari versi Admin
-     */
     private function getKetuaJurusanDetail($namaJurusan)
     {
         $daftarKajur = [
@@ -176,10 +183,7 @@ class MahasiswaKHSController extends Controller
             ],
         ];
 
-        return $daftarKajur[$namaJurusan] ?? [
-            'nama' => 'Belum Ditentukan',
-            'nip'  => '-'
-        ];
+        return $daftarKajur[$namaJurusan] ?? ['nama' => 'Belum Ditentukan', 'nip' => '-'];
     }
 
     public function previewKHS(Request $request)
@@ -232,11 +236,9 @@ class MahasiswaKHSController extends Controller
         $totalSKS = $khsData->sum('sks') ?? 0;
         $ipk = $totalSKS > 0 ? round($totalMutu / $totalSKS, 2) : 0;
 
-        // Tarik data kajur dinamis lewat helper array
         $namaJurusan = $mahasiswa->jurusan->nama_jurusan ?? '-';
         $ketua_jurusan = $this->getKetuaJurusanDetail($namaJurusan);
 
-        // Payload array data disamakan persis dengan milik Admin
         $data = [
             'mahasiswa' => $mahasiswa,
             'semester' => $semester,
@@ -249,7 +251,6 @@ class MahasiswaKHSController extends Controller
 
         $filename = "KHS-{$mahasiswa->nim}-" . Str::slug($semester->nama_semester) . "-" . now()->format('Ymd') . ".pdf";
 
-        // Ditambahkan setOptions() agar engine render PDF identik dengan versi admin
         $pdf = PDF::loadView('admin.khs.cetak-khs', $data)
             ->setPaper('a4', 'portrait')
             ->setOptions([
