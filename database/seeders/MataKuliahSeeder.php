@@ -63,7 +63,7 @@ class MataKuliahSeeder extends Seeder
             'PRA SKRIPSI' => [2, [[$si, 'KPB3704'], [$ti, 'KPB4703']]],
             'PEMROGRAMAN WEB' => [4, [[$si, 'KAB3821']]],
             'PENDIDIKAN KEWARGANEGARAAN' => [2, [[$si, 'KPP3808'], [$ti, 'KPP4807']]],
-            'SKRIPSI' => [6, [[$ti, 'KPB4804']]],
+            'SKRIPSI' => [6, [[$ti, 'KPB4804'], [$ti, 'KPB3805']]],
             'KALKULUS' => [2, [[$ti, 'KIT4102']]],
             'LOGIKA INFORMATIKA' => [2, [[$ti, 'KIT4103']]],
             'SISTEM DIGITAL' => [2, [[$ti, 'KIT4205']]],

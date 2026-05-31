@@ -52,10 +52,19 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 | Dashboard basic (kalau masih mau pakai view langsung)
 |--------------------------------------------------------------------------
 */
-Route::middleware('auth')->group(function () {
-    Route::view('/admin/dashboard', 'admin.dashboard.index')->name('admin.dashboard');
-    Route::view('/mahasiswa/dashboard', 'mahasiswa.dashboard.index')->name('mahasiswa.dashboard');
-});
+Route::get('/dashboard', function () {
+    $user = auth()->user();
+
+    if ($user->peran === 'admin') {
+        return redirect()->route('admin.dashboard');
+    } elseif ($user->peran === 'dosen') {
+        return redirect()->route('dosen.dashboard');
+    } elseif ($user->peran === 'mahasiswa') {
+        return redirect()->route('mahasiswa.dashboard');
+    }
+
+    return redirect('/'); // Jika role tidak cocok, kembalikan ke landing page
+})->middleware('auth')->name('dashboard');
 
 /*
 |--------------------------------------------------------------------------
