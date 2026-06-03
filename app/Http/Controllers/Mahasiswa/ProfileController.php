@@ -80,6 +80,14 @@ class ProfileController extends Controller
         // 🔥 hanya email + avatar yang diupdate
         $user->update($validated);
 
+        if ($request->has('email') && $request->email !== $user->getOriginal('email')) {
+            auth()->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')->with('success', 'Email berhasil diperbarui. Silakan login kembali menggunakan email baru Anda.');
+        }
+
         return back()->with(
             'success',
             'Profil berhasil diperbarui.'
