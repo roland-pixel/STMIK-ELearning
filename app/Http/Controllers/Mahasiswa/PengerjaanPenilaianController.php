@@ -85,6 +85,7 @@ class PengerjaanPenilaianController extends Controller
             return back()->withErrors(['message' => 'Waktu pengerjaan sudah berakhir.']);
         }
 
+        // Mengunci waktu mulai agar jika browser tertutup/ganti perangkat, durasi ujian tetap berjalan real-time
         $pengumpulan = Pengumpulan::firstOrCreate(
             ['penilaian_id' => $penilaian->id, 'mahasiswa_id' => $mahasiswaId],
             ['uuid' => Str::uuid(), 'waktu_mulai' => Carbon::now()]
@@ -95,8 +96,6 @@ class PengerjaanPenilaianController extends Controller
                 ->with('error', 'Anda sudah mengumpulkan tugas ini.');
         }
 
-        // 🔥 OPTIMASI UTAMA: Cache seluruh struktur soal ujian di Redis
-        // Menghindari 280 mahasiswa melakukan Heavy Query Eager Loading (Relation database) secara bersamaan.
         $cachedPenilaian = Cache::remember("penilaian:{$penilaian->id}:soal_lengkap", 1800, function () use ($penilaian) {
             $penilaian->load([
                 'pertanyaans' => fn($q) => $q->orderBy('nomor_urut'),
@@ -117,7 +116,7 @@ class PengerjaanPenilaianController extends Controller
 
         return Inertia::render('Mahasiswa/Kelas/Tugas/Penilaian/Online/Kerjakan', [
             'kelas' => $kelas,
-            'penilaian' => $cachedPenilaian, // Menggunakan data dari Redis
+            'penilaian' => $cachedPenilaian,
             'pengumpulan' => $pengumpulan
         ]);
     }
@@ -151,8 +150,8 @@ class PengerjaanPenilaianController extends Controller
             $this->regenerateRekapNilai($pengumpulan->id);
             DB::commit();
 
-            // 🔥 INVALIDASI CACHE: Hapus cache status agar halaman Rekap Nilai dosen / dashboard mhs ter-update
-            Cache::forget("kelas:{$kelas->id}:mhs:{$mahasiswaId}:enrolled");
+            // 💡 Catatan: Cache "enrolled" tidak perlu di-forget di sini agar saat redirect ke halaman 'show', 
+            // Laravel langsung mengambil data dari Redis tanpa membebani database utama lagi.
 
             return redirect()->route('mahasiswa.kelas.penilaian.online.show', [$kelas->uuid, $penilaian->uuid])
                 ->with('success', 'Jawaban berhasil dikirim.');

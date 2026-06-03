@@ -47,6 +47,10 @@ Route::get('/login',  [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [LoginController::class, 'login'])->name('login.post');
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
+// Tambahkan Route Google Login di sini
+Route::get('/auth/google', [LoginController::class, 'redirectToGoogle'])->name('google.login');
+Route::get('/auth/google/callback', [LoginController::class, 'handleGoogleCallback'])->name('google.callback');
+
 /*
 |--------------------------------------------------------------------------
 | Dashboard basic (kalau masih mau pakai view langsung)

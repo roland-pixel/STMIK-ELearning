@@ -89,6 +89,10 @@
                     </label>
                 </div>
 
+                <a href="{{ route('google.login') }}" class="btn btn-danger w-100">
+                    Login menggunakan Google
+                </a>
+
                 {{-- Button (maroon elegan) --}}
                 <button type="submit"
                     class="w-full rounded-xl py-2.5 font-semibold text-white
