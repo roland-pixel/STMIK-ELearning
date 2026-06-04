@@ -122,12 +122,15 @@
                                     </div>
 
                                     {{-- Modal konfirmasi --}}
+                                    {{-- Modal konfirmasi --}}
                                     <dialog id="hapus-jurusan-{{ $item->id }}"
-                                        class="rounded-2xl p-0 backdrop:bg-black/30">
-                                        <div class="w-full max-w-md bg-white rounded-2xl border border-slate-200 p-5">
+                                        class="fixed inset-0 z-50 m-auto backdrop:bg-black/40 rounded-2xl p-0 open:flex open:items-center open:justify-center border-0 bg-transparent shadow-none">
+
+                                        <div
+                                            class="w-full max-w-md bg-white rounded-2xl border border-slate-200 p-5 shadow-xl transition-all">
                                             <div class="flex items-start gap-3">
                                                 <div
-                                                    class="h-10 w-10 rounded-2xl bg-rose-50 text-rose-700 grid place-items-center">
+                                                    class="h-10 w-10 rounded-2xl bg-rose-50 text-rose-700 grid place-items-center shrink-0">
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5"
                                                         viewBox="0 0 24 24" fill="currentColor">
                                                         <path
@@ -135,7 +138,7 @@
                                                     </svg>
                                                 </div>
 
-                                                <div class="flex-1">
+                                                <div class="flex-1 text-left">
                                                     <h3 class="text-base font-semibold text-slate-900">Hapus Jurusan?</h3>
                                                     <p class="mt-1 text-sm text-slate-600">
                                                         Kamu akan menghapus jurusan:
@@ -150,7 +153,7 @@
                                             <div class="mt-5 flex justify-end gap-2">
                                                 <button type="button"
                                                     onclick="document.getElementById('hapus-jurusan-{{ $item->id }}').close()"
-                                                    class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm hover:bg-slate-50 transition">
+                                                    class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition">
                                                     Batal
                                                 </button>
 
@@ -158,7 +161,7 @@
                                                     @csrf
                                                     @method('DELETE')
                                                     <button type="submit"
-                                                        class="rounded-xl bg-maroon-700 px-4 py-2 text-sm font-semibold text-white hover:bg-maroon-800 transition">
+                                                        class="rounded-xl bg-maroon-700 px-4 py-2 text-sm font-semibold text-white hover:bg-maroon-800 transition shadow-sm">
                                                         Ya, Hapus
                                                     </button>
                                                 </form>

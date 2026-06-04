@@ -193,8 +193,9 @@
 
                                     {{-- Modal konfirmasi --}}
                                     <dialog id="hapus-mhs-{{ $item->id }}"
-                                        class="rounded-2xl p-0 backdrop:bg-black/30">
-                                        <div class="w-full max-w-md bg-white rounded-2xl border border-slate-200 p-5">
+                                        class="fixed inset-0 z-50 m-auto backdrop:bg-black/40 rounded-2xl p-0 open:flex open:items-center open:justify-center border-0 bg-transparent shadow-none">
+                                        <div
+                                            class="w-full max-w-md bg-white rounded-2xl border border-slate-200 p-5 shadow-xl transition-all">
                                             <div class="flex items-start gap-3">
                                                 <div
                                                     class="h-10 w-10 rounded-2xl bg-rose-50 text-rose-700 grid place-items-center">

@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class ProfileController extends Controller
@@ -46,14 +45,8 @@ class ProfileController extends Controller
         abort_if($user->peran !== 'mahasiswa', 403);
         abort_if(!$user->mahasiswa, 403, 'Akun mahasiswa belum terhubung ke data mahasiswa.');
 
-        // 🔥 nama_lengkap dihapus dari validasi
+        // 🔒 Email & Nama Lengkap dihapus total agar tidak bisa dimanipulasi dari Request
         $validated = $request->validate([
-            'email' => [
-                'required',
-                'email',
-                'max:150',
-                Rule::unique('users', 'email')->ignore($user->id)
-            ],
             'avatar' => [
                 'nullable',
                 'image',
@@ -62,10 +55,10 @@ class ProfileController extends Controller
             ],
         ]);
 
-        // upload avatar baru
+        // Proses upload avatar baru
         if ($request->hasFile('avatar')) {
 
-            // hapus avatar lama
+            // Hapus avatar lama jika ada
             if ($user->avatar && Storage::disk('public')->exists($user->avatar)) {
                 Storage::disk('public')->delete($user->avatar);
             }
@@ -77,15 +70,9 @@ class ProfileController extends Controller
             unset($validated['avatar']);
         }
 
-        // 🔥 hanya email + avatar yang diupdate
-        $user->update($validated);
-
-        if ($request->has('email') && $request->email !== $user->getOriginal('email')) {
-            auth()->logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
-
-            return redirect()->route('login')->with('success', 'Email berhasil diperbarui. Silakan login kembali menggunakan email baru Anda.');
+        // 🔒 Update murni hanya untuk avatar saja
+        if (!empty($validated)) {
+            $user->update($validated);
         }
 
         return back()->with(

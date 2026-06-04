@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class ProfileController extends Controller
@@ -30,13 +29,19 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
+        // 🔒 Nama lengkap & Email dihapus dari validasi agar tidak bisa disusupi dari Request luar
         $validated = $request->validate([
-            'nama_lengkap' => ['required', 'string', 'max:150'],
-            'email' => ['required', 'email', 'max:150', Rule::unique('users', 'email')->ignore($user->id)],
-            'avatar' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'avatar' => [
+                'nullable',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:2048'
+            ],
         ]);
 
+        // Proses upload avatar baru
         if ($request->hasFile('avatar')) {
+            // Hapus avatar lama jika ada
             if ($user->avatar && Storage::disk('public')->exists($user->avatar)) {
                 Storage::disk('public')->delete($user->avatar);
             }
@@ -45,7 +50,10 @@ class ProfileController extends Controller
             unset($validated['avatar']);
         }
 
-        $user->update($validated);
+        // 🔒 Update murni dilakukan hanya jika ada perubahan avatar
+        if (!empty($validated)) {
+            $user->update($validated);
+        }
 
         return back()->with('success', 'Profil berhasil diperbarui.');
     }

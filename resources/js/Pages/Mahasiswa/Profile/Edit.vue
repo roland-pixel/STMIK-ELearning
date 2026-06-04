@@ -17,7 +17,7 @@ const storedAvatarUrl = computed(() => {
 /** Avatar preview */
 const avatarPreview = ref(null);
 
-/** 🔥 nama hanya display, bukan editable */
+/** 🔒 Nama lengkap & Email hanya untuk display, tidak dikirim ke backend */
 const profileForm = useForm({
     nama_lengkap: props.user.nama_lengkap ?? "",
     email: props.user.email ?? "",
@@ -39,23 +39,15 @@ const passwordForm = useForm({
     password_confirmation: "",
 });
 
-/** Unsaved changes indicator */
-const initialProfile = ref({
-    email: props.user.email ?? "",
-});
-
 const initialPassword = ref({
     current_password: "",
     password: "",
     password_confirmation: "",
 });
 
-/** 🔥 nama tidak ikut dirty check */
+/** 🔒 Hanya cek apakah ada file avatar baru yang dipilih */
 const profileDirty = computed(() => {
-    return (
-        profileForm.email !== initialProfile.value.email ||
-        !!profileForm.avatar
-    );
+    return !!profileForm.avatar;
 });
 
 const passwordDirty = computed(() => {
@@ -101,10 +93,6 @@ const submitProfile = () => {
         preserveScroll: true,
 
         onSuccess: () => {
-            initialProfile.value = {
-                email: profileForm.email,
-            };
-
             cancelPick();
         },
     });
@@ -150,7 +138,6 @@ const shownAvatar = computed(() => {
 
 <template>
     <div class="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8 py-6">
-        <!-- Top row -->
         <div class="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <Link :href="route('mahasiswa.dashboard')"
                 class="inline-flex items-center gap-2 rounded-2xl border border-gray-200/70 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 transition w-fit">
@@ -168,7 +155,6 @@ const shownAvatar = computed(() => {
             </div>
         </div>
 
-        <!-- Page header -->
         <div class="mb-6 rounded-3xl border border-gray-200/70 bg-white/70 backdrop-blur shadow-sm">
             <div class="px-6 py-5">
                 <div class="flex items-start justify-between gap-4">
@@ -195,9 +181,7 @@ const shownAvatar = computed(() => {
             </div>
         </div>
 
-        <!-- Content -->
         <div class="grid gap-6 lg:grid-cols-2">
-            <!-- PROFILE CARD -->
             <section class="rounded-3xl bg-white shadow-sm ring-1 ring-gray-200/70 overflow-hidden">
                 <header class="px-6 py-5 border-b border-gray-200/60">
                     <div class="flex items-start justify-between gap-3">
@@ -220,7 +204,6 @@ const shownAvatar = computed(() => {
                 </header>
 
                 <div class="p-6 space-y-5">
-                    <!-- Avatar row -->
                     <div class="flex items-center gap-4">
                         <div class="relative">
                             <div class="w-16 h-16 rounded-full p-[2px] bg-gradient-to-br from-blue-700 to-blue-400">
@@ -295,29 +278,24 @@ const shownAvatar = computed(() => {
                         <label class="block text-xs font-semibold text-gray-700 mb-1.5">
                             Nama lengkap
                         </label>
-
                         <input :value="profileForm.nama_lengkap" type="text" readonly
-                            class="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-500 cursor-not-allowed" />
-
+                            class="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-500 cursor-not-allowed focus:outline-none" />
                         <p class="mt-1.5 text-xs text-gray-400">
                             Nama berasal dari data akademik dan tidak dapat diubah.
                         </p>
                     </div>
 
-                    <!-- Email -->
                     <div>
                         <label class="block text-xs font-semibold text-gray-700 mb-1.5">
                             Email
                         </label>
-                        <input v-model="profileForm.email" type="email"
-                            class="w-full rounded-2xl border border-gray-200/70 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-200 transition"
-                            placeholder="nama@domain.com" />
-                        <div v-if="profileForm.errors.email" class="mt-1.5 text-xs text-red-600">
-                            {{ profileForm.errors.email }}
-                        </div>
+                        <input :value="profileForm.email" type="email" readonly
+                            class="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-500 cursor-not-allowed focus:outline-none" />
+                        <p class="mt-1.5 text-xs text-gray-400">
+                            Email terhubung dengan akun SSO Google Mahasiswa dan tidak dapat diubah.
+                        </p>
                     </div>
 
-                    <!-- Save -->
                     <button type="button" @click="submitProfile" :disabled="profileForm.processing"
                         class="w-full rounded-2xl py-3.5 font-semibold text-white shadow-sm transition bg-gradient-to-br from-blue-700 to-blue-500 hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed">
                         <span v-if="!profileForm.processing">Simpan Profil</span>
@@ -331,7 +309,6 @@ const shownAvatar = computed(() => {
                 </div>
             </section>
 
-            <!-- PASSWORD CARD -->
             <section class="rounded-3xl bg-white shadow-sm ring-1 ring-gray-200/70 overflow-hidden">
                 <header class="px-6 py-5 border-b border-gray-200/60">
                     <div class="flex items-start justify-between gap-3">

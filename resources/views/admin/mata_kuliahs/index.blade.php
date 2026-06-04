@@ -162,8 +162,9 @@
 
                                     {{-- Modal Hapus --}}
                                     <dialog id="hapus-mk-{{ $item->id }}"
-                                        class="rounded-2xl p-0 backdrop:bg-black/40 overflow-hidden shadow-2xl">
-                                        <div class="w-full max-w-sm bg-white p-6 text-left whitespace-normal">
+                                        class="fixed inset-0 z-50 m-auto backdrop:bg-black/40 rounded-2xl p-0 open:flex open:items-center open:justify-center border-0 bg-transparent shadow-none">
+                                        <div
+                                            class="w-full max-w-md bg-white rounded-2xl border border-slate-200 p-5 shadow-xl transition-all">
                                             <h3 class="text-lg font-bold text-slate-900">Konfirmasi Hapus</h3>
                                             <p class="mt-2 text-sm text-slate-600">Yakin ingin menghapus
                                                 <strong>{{ $item->nama_mk }}</strong>? Data kurikulum terkait juga akan

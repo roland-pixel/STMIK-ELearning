@@ -23,7 +23,6 @@ const avatarPreview = ref(null);
 watch(
     () => props.user.avatar,
     () => {
-        // kalau props berubah, reset preview (optional)
         if (!profileForm.avatar) avatarPreview.value = null;
     },
 );
@@ -40,33 +39,24 @@ const passwordForm = useForm({
     password_confirmation: "",
 });
 
-/** Unsaved changes indicator */
-const initialProfile = ref({
-    nama_lengkap: props.user.nama_lengkap ?? "",
-    email: props.user.email ?? "",
-});
-
 const initialPassword = ref({
     current_password: "",
     password: "",
     password_confirmation: "",
 });
 
+// 🔒 Hanya mengecek perubahan avatar, karena nama & email read-only
 const profileDirty = computed(() => {
-    return (
-        profileForm.nama_lengkap !== initialProfile.value.nama_lengkap ||
-        profileForm.email !== initialProfile.value.email ||
-        !!profileForm.avatar
-    );
+    return !!profileForm.avatar;
 });
 
 const passwordDirty = computed(() => {
     return (
         passwordForm.current_password !==
-            initialPassword.value.current_password ||
+        initialPassword.value.current_password ||
         passwordForm.password !== initialPassword.value.password ||
         passwordForm.password_confirmation !==
-            initialPassword.value.password_confirmation
+        initialPassword.value.password_confirmation
     );
 });
 
@@ -90,11 +80,6 @@ const submitProfile = () => {
         forceFormData: true,
         preserveScroll: true,
         onSuccess: () => {
-            initialProfile.value = {
-                nama_lengkap: profileForm.nama_lengkap,
-                email: profileForm.email,
-            };
-
             profileForm.avatar = null;
             if (avatarPreview.value) {
                 URL.revokeObjectURL(avatarPreview.value);
@@ -106,7 +91,6 @@ const submitProfile = () => {
 
 const submitPassword = () => {
     passwordForm.post(route("dosen.profile.password"), {
-        // ✅ bukan password.update
         preserveScroll: true,
         onSuccess: () => {
             passwordForm.reset();
@@ -122,7 +106,6 @@ const submitPassword = () => {
 const deleteAvatar = () => {
     if (!confirm("Hapus avatar?")) return;
     profileForm.delete(route("dosen.profile.avatar.destroy"), {
-        // ✅ bukan avatar.delete
         preserveScroll: true,
         onSuccess: () => {
             profileForm.avatar = null;
@@ -140,47 +123,29 @@ const shownAvatar = computed(
 </script>
 
 <template>
-    <!-- WRAPPER: kalau mau center tanpa ubah layout, aktifkan mx-auto + w-full -->
     <div class="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8 py-6">
-        <!-- Top row: Back + Unsaved badge -->
-        <div
-            class="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-        >
-            <Link
-                :href="route('dosen.dashboard')"
-                class="inline-flex items-center gap-2 rounded-2xl border border-gray-200/70 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 transition w-fit"
-            >
+        <div class="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <Link :href="route('dosen.dashboard')"
+                class="inline-flex items-center gap-2 rounded-2xl border border-gray-200/70 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 transition w-fit">
                 <svg viewBox="0 0 24 24" class="w-5 h-5">
-                    <path
-                        fill="currentColor"
-                        d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"
-                    />
+                    <path fill="currentColor" d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
                 </svg>
                 Kembali ke Dashboard
             </Link>
 
-            <div
-                v-if="anyDirty"
+            <div v-if="anyDirty"
                 class="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 ring-1 ring-amber-200/70 w-fit"
-                title="Ada perubahan yang belum disimpan"
-            >
-                <span
-                    class="inline-block w-2 h-2 rounded-full bg-amber-500"
-                ></span>
+                title="Ada perubahan yang belum disimpan">
+                <span class="inline-block w-2 h-2 rounded-full bg-amber-500"></span>
                 Ada perubahan belum disimpan
             </div>
         </div>
 
-        <!-- Page header -->
-        <div
-            class="mb-6 rounded-3xl border border-gray-200/70 bg-white/70 backdrop-blur shadow-sm"
-        >
+        <div class="mb-6 rounded-3xl border border-gray-200/70 bg-white/70 backdrop-blur shadow-sm">
             <div class="px-6 py-5">
                 <div class="flex items-start justify-between gap-4">
                     <div class="min-w-0">
-                        <h1
-                            class="text-lg sm:text-xl font-semibold text-gray-900"
-                        >
+                        <h1 class="text-lg sm:text-xl font-semibold text-gray-900">
                             Edit Profil
                         </h1>
                         <p class="mt-1 text-sm text-gray-600">
@@ -189,30 +154,21 @@ const shownAvatar = computed(
                     </div>
 
                     <div
-                        class="hidden sm:flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-800 ring-1 ring-rose-100"
-                    >
-                        <span
-                            class="inline-block h-2 w-2 rounded-full bg-rose-600"
-                        ></span>
+                        class="hidden sm:flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-800 ring-1 ring-rose-100">
+                        <span class="inline-block h-2 w-2 rounded-full bg-rose-600"></span>
                         Akun Dosen
                     </div>
                 </div>
 
-                <div
-                    v-if="page.props.flash?.success"
-                    class="mt-4 rounded-2xl border border-rose-100 bg-rose-50/70 px-4 py-3 text-sm text-rose-900"
-                >
+                <div v-if="page.props.flash?.success"
+                    class="mt-4 rounded-2xl border border-rose-100 bg-rose-50/70 px-4 py-3 text-sm text-rose-900">
                     {{ page.props.flash.success }}
                 </div>
             </div>
         </div>
 
-        <!-- Content -->
         <div class="grid gap-6 lg:grid-cols-2">
-            <!-- PROFILE CARD -->
-            <section
-                class="rounded-3xl bg-white shadow-sm ring-1 ring-gray-200/70 overflow-hidden"
-            >
+            <section class="rounded-3xl bg-white shadow-sm ring-1 ring-gray-200/70 overflow-hidden">
                 <header class="px-6 py-5 border-b border-gray-200/60">
                     <div class="flex items-start justify-between gap-3">
                         <div>
@@ -220,73 +176,45 @@ const shownAvatar = computed(
                                 Informasi Profil
                             </div>
                             <div class="text-xs text-gray-500 mt-0.5">
-                                Nama lengkap, email, dan avatar.
+                                Hanya avatar yang dapat diubah secara manual.
                             </div>
                         </div>
 
-                        <div
-                            v-if="profileDirty"
+                        <div v-if="profileDirty"
                             class="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200/70"
-                            title="Form profil berubah"
-                        >
-                            <span
-                                class="inline-block w-2 h-2 rounded-full bg-amber-500"
-                            ></span>
+                            title="Form profil berubah">
+                            <span class="inline-block w-2 h-2 rounded-full bg-amber-500"></span>
                             Unsaved
                         </div>
                     </div>
                 </header>
 
                 <div class="p-6 space-y-5">
-                    <!-- Avatar row -->
                     <div class="flex items-center gap-4">
                         <div class="relative">
-                            <div
-                                class="w-16 h-16 rounded-full p-[2px] bg-gradient-to-br from-rose-700 to-rose-400"
-                            >
+                            <div class="w-16 h-16 rounded-full p-[2px] bg-gradient-to-br from-rose-700 to-rose-400">
                                 <div
-                                    class="w-full h-full rounded-full overflow-hidden bg-gray-100 grid place-items-center ring-1 ring-white"
-                                >
-                                    <img
-                                        v-if="shownAvatar"
-                                        :src="shownAvatar"
-                                        class="w-full h-full object-cover"
-                                        alt="Avatar"
-                                    />
-                                    <span
-                                        v-else
-                                        class="text-lg font-bold text-gray-700"
-                                    >
-                                        {{
-                                            (
-                                                props.user.nama_lengkap?.[0] ??
-                                                "D"
-                                            ).toUpperCase()
-                                        }}
+                                    class="w-full h-full rounded-full overflow-hidden bg-gray-100 grid place-items-center ring-1 ring-white">
+                                    <img v-if="shownAvatar" :src="shownAvatar" class="w-full h-full object-cover"
+                                        alt="Avatar" />
+                                    <span v-else class="text-lg font-bold text-gray-700">
+                                        {{ (props.user.nama_lengkap?.[0] ?? "D").toUpperCase() }}
                                     </span>
                                 </div>
                             </div>
 
                             <span
                                 class="absolute -bottom-1 -right-1 grid place-items-center w-7 h-7 rounded-full bg-white ring-1 ring-gray-200 shadow-sm"
-                                title="Profil"
-                            >
-                                <svg
-                                    viewBox="0 0 24 24"
-                                    class="w-4 h-4 text-rose-700"
-                                >
-                                    <path
-                                        fill="currentColor"
-                                        d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4.42 0-8 2-8 4.5V21h16v-2.5C20 16 16.42 14 12 14Z"
-                                    />
+                                title="Profil">
+                                <svg viewBox="0 0 24 24" class="w-4 h-4 text-rose-700">
+                                    <path fill="currentColor"
+                                        d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4.42 0-8 2-8 4.5V21h16v-2.5C20 16 16.42 14 12 14Z" />
                                 </svg>
                             </span>
                         </div>
 
                         <div class="flex-1 min-w-0">
-                            <div
-                                class="text-sm font-semibold text-gray-900 truncate"
-                            >
+                            <div class="text-sm font-semibold text-gray-900 truncate">
                                 {{ props.user.nama_lengkap }}
                             </div>
                             <div class="text-xs text-gray-500 truncate">
@@ -295,53 +223,27 @@ const shownAvatar = computed(
 
                             <div class="mt-3 flex flex-wrap items-center gap-2">
                                 <label
-                                    class="inline-flex items-center gap-2 rounded-2xl bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-700 ring-1 ring-gray-200/70 hover:bg-gray-100 transition cursor-pointer"
-                                >
-                                    <svg
-                                        viewBox="0 0 24 24"
-                                        class="w-4 h-4 text-gray-600"
-                                    >
-                                        <path
-                                            fill="currentColor"
-                                            d="M19 13v6H5v-6H3v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6h-2ZM11 3v9.17L8.41 9.59 7 11l5 5 5-5-1.41-1.41L13 12.17V3h-2Z"
-                                        />
+                                    class="inline-flex items-center gap-2 rounded-2xl bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-700 ring-1 ring-gray-200/70 hover:bg-gray-100 transition cursor-pointer">
+                                    <svg viewBox="0 0 24 24" class="w-4 h-4 text-gray-600">
+                                        <path fill="currentColor"
+                                            d="M19 13v6H5v-6H3v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6h-2ZM11 3v9.17L8.41 9.59 7 11l5 5 5-5-1.41-1.41L13 12.17V3h-2Z" />
                                     </svg>
                                     <span>Pilih avatar</span>
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        class="hidden"
-                                        @change="onPickAvatar"
-                                    />
+                                    <input type="file" accept="image/*" class="hidden" @change="onPickAvatar" />
                                 </label>
 
-                                <button
-                                    v-if="props.user.avatar"
-                                    type="button"
+                                <button v-if="props.user.avatar" type="button"
                                     class="text-xs font-semibold text-rose-700 hover:text-rose-800 hover:bg-rose-50 px-3 py-2 rounded-2xl transition ring-1 ring-transparent hover:ring-rose-100"
-                                    @click="deleteAvatar"
-                                >
+                                    @click="deleteAvatar">
                                     Hapus avatar
                                 </button>
 
-                                <button
-                                    v-if="profileForm.avatar"
-                                    type="button"
+                                <button v-if="profileForm.avatar" type="button"
                                     class="text-xs font-semibold text-gray-700 hover:text-gray-900 hover:bg-gray-100 px-3 py-2 rounded-2xl transition ring-1 ring-gray-200/70"
                                     @click="
                                         profileForm.avatar = null;
-                                        if (avatarPreview) {
-                                            if (avatarPreview) {
-                                            }
-                                        }
-                                        if (avatarPreview) {
-                                        }
-                                        if (avatarPreview) {
-                                        }
-                                        if (avatarPreview) {
-                                        }
-                                    "
-                                >
+                                    avatarPreview = null;
+                                    ">
                                     Batal pilih
                                 </button>
 
@@ -350,76 +252,50 @@ const shownAvatar = computed(
                                 </span>
                             </div>
 
-                            <div
-                                v-if="profileForm.errors.avatar"
-                                class="mt-2 text-xs text-red-600"
-                            >
+                            <div v-if="profileForm.errors.avatar" class="mt-2 text-xs text-red-600">
                                 {{ profileForm.errors.avatar }}
                             </div>
                         </div>
                     </div>
 
-                    <!-- Nama lengkap -->
                     <div>
-                        <label
-                            class="block text-xs font-semibold text-gray-700 mb-1.5"
-                        >
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">
                             Nama lengkap
                         </label>
-                        <input
-                            v-model="profileForm.nama_lengkap"
-                            type="text"
-                            class="w-full rounded-2xl border border-gray-200/70 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-700/20 focus:border-rose-200 transition"
-                            placeholder="Masukkan nama lengkap"
-                        />
-                        <div
-                            v-if="profileForm.errors.nama_lengkap"
-                            class="mt-1.5 text-xs text-red-600"
-                        >
-                            {{ profileForm.errors.nama_lengkap }}
+                        <input v-model="profileForm.nama_lengkap" type="text" disabled
+                            class="w-full rounded-2xl border border-gray-200/70 bg-gray-50 px-4 py-3 text-gray-500 cursor-not-allowed focus:outline-none transition" />
+                        <div class="mt-1.5 text-[11px] text-gray-500 flex items-center gap-1.5">
+                            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                            Disinkronisasi otomatis dari sistem.
                         </div>
                     </div>
 
-                    <!-- Email -->
                     <div>
-                        <label
-                            class="block text-xs font-semibold text-gray-700 mb-1.5"
-                        >
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">
                             Email
                         </label>
-                        <input
-                            v-model="profileForm.email"
-                            type="email"
-                            class="w-full rounded-2xl border border-gray-200/70 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-700/20 focus:border-rose-200 transition"
-                            placeholder="nama@domain.com"
-                        />
-                        <div
-                            v-if="profileForm.errors.email"
-                            class="mt-1.5 text-xs text-red-600"
-                        >
-                            {{ profileForm.errors.email }}
+                        <input v-model="profileForm.email" type="email" disabled
+                            class="w-full rounded-2xl border border-gray-200/70 bg-gray-50 px-4 py-3 text-gray-500 cursor-not-allowed focus:outline-none transition" />
+                        <div class="mt-1.5 text-[11px] text-gray-500 flex items-center gap-1.5">
+                            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                            Terhubung dengan akun SSO Google Dosen dan tidak dapat diubah.
                         </div>
                     </div>
 
-                    <!-- Save -->
-                    <button
-                        type="button"
-                        @click="submitProfile"
-                        :disabled="profileForm.processing"
-                        class="w-full rounded-2xl py-3.5 font-semibold text-white shadow-sm transition bg-gradient-to-br from-rose-800 to-rose-600 hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                        <span v-if="!profileForm.processing"
-                            >Simpan Profil</span
-                        >
+                    <button type="button" @click="submitProfile" :disabled="profileForm.processing || !profileDirty"
+                        class="w-full rounded-2xl py-3.5 font-semibold text-white shadow-sm transition bg-gradient-to-br from-rose-800 to-rose-600 hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed">
+                        <span v-if="!profileForm.processing">Simpan Profil</span>
                         <span v-else class="inline-flex items-center gap-2">
-                            <svg
-                                class="w-4 h-4 animate-spin"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    fill="currentColor"
-                                    d="M12 2a10 10 0 1 0 10 10h-2A8 8 0 1 1 12 4V2Z"
-                                />
+                            <svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24">
+                                <path fill="currentColor" d="M12 2a10 10 0 1 0 10 10h-2A8 8 0 1 1 12 4V2Z" />
                             </svg>
                             Menyimpan...
                         </span>
@@ -427,10 +303,7 @@ const shownAvatar = computed(
                 </div>
             </section>
 
-            <!-- PASSWORD CARD -->
-            <section
-                class="rounded-3xl bg-white shadow-sm ring-1 ring-gray-200/70 overflow-hidden"
-            >
+            <section class="rounded-3xl bg-white shadow-sm ring-1 ring-gray-200/70 overflow-hidden">
                 <header class="px-6 py-5 border-b border-gray-200/60">
                     <div class="flex items-start justify-between gap-3">
                         <div>
@@ -442,99 +315,59 @@ const shownAvatar = computed(
                             </div>
                         </div>
 
-                        <div
-                            v-if="passwordDirty"
+                        <div v-if="passwordDirty"
                             class="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200/70"
-                            title="Form password berubah"
-                        >
-                            <span
-                                class="inline-block w-2 h-2 rounded-full bg-amber-500"
-                            ></span>
+                            title="Form password berubah">
+                            <span class="inline-block w-2 h-2 rounded-full bg-amber-500"></span>
                             Unsaved
                         </div>
                     </div>
                 </header>
 
                 <div class="p-6 space-y-5">
-                    <div
-                        class="rounded-2xl bg-gray-50/70 border border-gray-200/70 px-4 py-3 text-xs text-gray-600"
-                    >
-                        Tips: gunakan minimal 8 karakter, kombinasi huruf &
-                        angka.
+                    <div class="rounded-2xl bg-gray-50/70 border border-gray-200/70 px-4 py-3 text-xs text-gray-600">
+                        Tips: gunakan minimal 8 karakter, kombinasi huruf & angka.
                     </div>
 
                     <div>
-                        <label
-                            class="block text-xs font-semibold text-gray-700 mb-1.5"
-                        >
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">
                             Password saat ini
                         </label>
-                        <input
-                            v-model="passwordForm.current_password"
-                            type="password"
+                        <input v-model="passwordForm.current_password" type="password"
                             class="w-full rounded-2xl border border-gray-200/70 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-700/20 focus:border-rose-200 transition"
-                            placeholder="••••••••"
-                        />
-                        <div
-                            v-if="passwordForm.errors.current_password"
-                            class="mt-1.5 text-xs text-red-600"
-                        >
+                            placeholder="••••••••" />
+                        <div v-if="passwordForm.errors.current_password" class="mt-1.5 text-xs text-red-600">
                             {{ passwordForm.errors.current_password }}
                         </div>
                     </div>
 
                     <div>
-                        <label
-                            class="block text-xs font-semibold text-gray-700 mb-1.5"
-                        >
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">
                             Password baru
                         </label>
-                        <input
-                            v-model="passwordForm.password"
-                            type="password"
+                        <input v-model="passwordForm.password" type="password"
                             class="w-full rounded-2xl border border-gray-200/70 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-700/20 focus:border-rose-200 transition"
-                            placeholder="Minimal 8 karakter"
-                        />
-                        <div
-                            v-if="passwordForm.errors.password"
-                            class="mt-1.5 text-xs text-red-600"
-                        >
+                            placeholder="Minimal 8 karakter" />
+                        <div v-if="passwordForm.errors.password" class="mt-1.5 text-xs text-red-600">
                             {{ passwordForm.errors.password }}
                         </div>
                     </div>
 
                     <div>
-                        <label
-                            class="block text-xs font-semibold text-gray-700 mb-1.5"
-                        >
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">
                             Konfirmasi password baru
                         </label>
-                        <input
-                            v-model="passwordForm.password_confirmation"
-                            type="password"
+                        <input v-model="passwordForm.password_confirmation" type="password"
                             class="w-full rounded-2xl border border-gray-200/70 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-700/20 focus:border-rose-200 transition"
-                            placeholder="Ulangi password baru"
-                        />
+                            placeholder="Ulangi password baru" />
                     </div>
 
-                    <button
-                        type="button"
-                        @click="submitPassword"
-                        :disabled="passwordForm.processing"
-                        class="w-full rounded-2xl py-3.5 font-semibold text-white shadow-sm transition bg-gray-900 hover:bg-gray-800 disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                        <span v-if="!passwordForm.processing"
-                            >Ganti Password</span
-                        >
+                    <button type="button" @click="submitPassword" :disabled="passwordForm.processing"
+                        class="w-full rounded-2xl py-3.5 font-semibold text-white shadow-sm transition bg-gray-900 hover:bg-gray-800 disabled:opacity-60 disabled:cursor-not-allowed">
+                        <span v-if="!passwordForm.processing">Ganti Password</span>
                         <span v-else class="inline-flex items-center gap-2">
-                            <svg
-                                class="w-4 h-4 animate-spin"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    fill="currentColor"
-                                    d="M12 2a10 10 0 1 0 10 10h-2A8 8 0 1 1 12 4V2Z"
-                                />
+                            <svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24">
+                                <path fill="currentColor" d="M12 2a10 10 0 1 0 10 10h-2A8 8 0 1 1 12 4V2Z" />
                             </svg>
                             Menyimpan...
                         </span>
