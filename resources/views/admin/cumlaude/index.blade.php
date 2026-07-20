@@ -25,18 +25,18 @@
                         class="w-full rounded-xl border-slate-200 text-sm focus:ring-maroon-500 focus:border-maroon-500">
                         <option value="">Semua Jurusan</option>
                         @foreach ($jurusans as $jurusan)
-                            <option value="{{ $jurusan->id }}"
-                                {{ request('jurusan_id') == $jurusan->id ? 'selected' : '' }}>
+                            <option value="{{ $jurusan->id }}" {{ $selectedJurusan == $jurusan->id ? 'selected' : '' }}>
                                 {{ $jurusan->nama_jurusan }}
                             </option>
                         @endforeach
                     </select>
                 </div>
 
-                {{-- Filter Angkatan --}}
+                {{-- PERBAIKAN: Filter Tahun Lulus (Bukan Angkatan) --}}
                 <div class="w-full md:w-40">
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Angkatan</label>
-                    <input type="number" name="angkatan" value="{{ request('angkatan') }}" placeholder="Contoh: 2020"
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Tahun Lulus</label>
+                    <input type="number" name="tahun_lulus" value="{{ $selectedTahun }}"
+                        placeholder="Contoh: {{ date('Y') }}"
                         class="w-full rounded-xl border-slate-200 text-sm focus:ring-maroon-500 focus:border-maroon-500">
                 </div>
 
@@ -104,7 +104,6 @@
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($daftar as $mhs)
                             <tr class="hover:bg-slate-50 transition-colors">
-                                {{-- Peringkat dengan badge --}}
                                 <td class="px-6 py-4">
                                     @if ($mhs->peringkat <= 3)
                                         <div
@@ -119,13 +118,11 @@
                                     @endif
                                 </td>
 
-                                {{-- Info Mahasiswa --}}
                                 <td class="px-6 py-4">
                                     <div class="font-bold text-slate-900">{{ $mhs->nama_lengkap }}</div>
                                     <div class="text-xs font-mono text-slate-500">{{ $mhs->nim }}</div>
                                 </td>
 
-                                {{-- Jurusan --}}
                                 <td class="px-6 py-4">
                                     <div class="flex items-center gap-2">
                                         <span
@@ -136,14 +133,12 @@
                                     </div>
                                 </td>
 
-                                {{-- Angkatan --}}
                                 <td class="px-6 py-4 text-center">
                                     <span class="text-sm px-3 py-1 bg-slate-100 rounded-lg text-slate-600 font-medium">
                                         {{ $mhs->angkatan }}
                                     </span>
                                 </td>
 
-                                {{-- IPK Badge --}}
                                 <td class="px-6 py-4 text-center">
                                     <div class="text-lg font-black text-slate-800">{{ number_format($mhs->ipk, 2) }}</div>
                                     @if ($mhs->total_nilai_a > 0)
@@ -153,7 +148,6 @@
                                     @endif
                                 </td>
 
-                                {{-- Nilai Skripsi & Tiebreaker info --}}
                                 <td class="px-6 py-4 text-center border-l border-slate-50">
                                     @if ($mhs->nilai_skripsi)
                                         <div class="text-sm font-bold text-maroon-700">
@@ -173,8 +167,7 @@
                                     <div class="max-w-xs mx-auto">
                                         <p class="text-4xl mb-4">🔍</p>
                                         <p class="font-bold text-slate-800">Tidak ada data</p>
-                                        <p class="text-sm text-slate-500">Gunakan filter untuk mempersempit pencarian atau
-                                            belum ada mahasiswa yang memenuhi syarat.</p>
+                                        <p class="text-sm text-slate-500">Gunakan filter untuk mempersempit pencarian.</p>
                                     </div>
                                 </td>
                             </tr>

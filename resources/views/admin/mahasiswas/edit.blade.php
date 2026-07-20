@@ -132,8 +132,8 @@
                                 </div>
 
                                 <div>
-                                    <label class="block text-sm font-medium text-ink-700">Status</label>
-                                    <select name="status"
+                                    <label class="block text-sm font-medium text-ink-700">Status Kelulusan</label>
+                                    <select name="status" id="status_select"
                                         class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm
                                                focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition"
                                         required>
@@ -145,6 +145,32 @@
                                         </option>
                                     </select>
                                     @error('status')
+                                        <p class="mt-1 text-sm text-rose-700">{{ $message }}</p>
+                                    @enderror
+                                </div>
+                            </div>
+
+                            {{-- GRID TAMBAHAN UNTUK TANGGAL MASUK & TANGGAL LULUS (BARU DISINKRONKAN) --}}
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-ink-700">Tanggal Masuk</label>
+                                    <input type="date" name="tanggal_masuk"
+                                        value="{{ old('tanggal_masuk', $mahasiswa->tanggal_masuk ? \Carbon\Carbon::parse($mahasiswa->tanggal_masuk)->format('Y-m-d') : '') }}"
+                                        class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm
+                                               focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition"
+                                        required>
+                                    @error('tanggal_masuk')
+                                        <p class="mt-1 text-sm text-rose-700">{{ $message }}</p>
+                                    @enderror
+                                </div>
+
+                                <div id="tanggal_lulus_wrapper">
+                                    <label class="block text-sm font-medium text-ink-700">Tanggal Lulus</label>
+                                    <input type="date" name="tanggal_lulus" id="tanggal_lulus_input"
+                                        value="{{ old('tanggal_lulus', $mahasiswa->tanggal_lulus ? \Carbon\Carbon::parse($mahasiswa->tanggal_lulus)->format('Y-m-d') : '') }}"
+                                        class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm
+                                               focus:outline-none focus:ring-4 focus:ring-maroon-600/10 focus:border-maroon-700 transition">
+                                    @error('tanggal_lulus')
                                         <p class="mt-1 text-sm text-rose-700">{{ $message }}</p>
                                     @enderror
                                 </div>
@@ -218,4 +244,30 @@
             Perubahan email/password akan mempengaruhi akses login mahasiswa.
         </p>
     </div>
+
+    {{-- JAVASCRIPT VANILLA UNTUK TOGGLE INPUT TANGGAL LULUS (BARU DISINKRONKAN) --}}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const statusSelect = document.getElementById('status_select');
+            const tanggalLulusWrapper = document.getElementById('tanggal_lulus_wrapper');
+            const tanggalLulusInput = document.getElementById('tanggal_lulus_input');
+
+            function toggleTanggalLulus() {
+                if (statusSelect.value === 'lulus') {
+                    tanggalLulusWrapper.style.display = 'block';
+                    tanggalLulusInput.setAttribute('required', 'required');
+                } else {
+                    tanggalLulusWrapper.style.display = 'none';
+                    tanggalLulusInput.removeAttribute('required');
+                    tanggalLulusInput.value = ''; // Reset nilainya jika ganti ke aktif
+                }
+            }
+
+            // Jalankan saat halaman pertama kali dimuat (antisipasi database value atau old value)
+            toggleTanggalLulus();
+
+            // Jalankan setiap kali status select berubah
+            statusSelect.addEventListener('change', toggleTanggalLulus);
+        });
+    </script>
 @endsection

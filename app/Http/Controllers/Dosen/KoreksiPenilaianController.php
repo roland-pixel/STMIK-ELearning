@@ -28,17 +28,15 @@ class KoreksiPenilaianController extends Controller
 
         try {
             DB::transaction(function () use ($pengumpulanId, $jawabanData) {
-                // 1. UPDATE jawaban_details
                 foreach ($jawabanData as $jawaban) {
                     JawabanDetail::where('id', $jawaban['id'])
                         ->where('pengumpulan_id', $pengumpulanId)
-                        ->update(['nilai_per_soal' => $jawaban['nilai_per_soal']]);
+                        ->update([
+                            'nilai_per_soal' => $jawaban['nilai_per_soal']
+                        ]);
                 }
 
-                // 2. HITUNG ULANG total nilai pengumpulan ini
                 $this->updatePengumpulanTotal($pengumpulanId);
-
-                // 3. REGENERATE rekap_nilais dengan logika perbandingan
                 $this->regenerateRekapNilai($pengumpulanId);
             });
 
@@ -75,57 +73,63 @@ class KoreksiPenilaianController extends Controller
 
     private function regenerateRekapNilai($pengumpulanId)
     {
-        $pengumpulan = Pengumpulan::with(['penilaian.kelas', 'mahasiswa'])->find($pengumpulanId);
+        $pengumpulan = Pengumpulan::with(['penilaian.kelas'])->find($pengumpulanId);
         if (!$pengumpulan) return;
 
-        $mahasiswaId = $pengumpulan->mahasiswa_id;
         $kelas = $pengumpulan->penilaian->kelas;
         $kelasId = $kelas->id;
 
-        // 1. Ambil semua pengumpulan mahasiswa di KELAS INI
-        $semuaPengumpulan = Pengumpulan::whereHas('penilaian', fn($q) => $q->where('kelas_id', $kelasId))
-            ->where('mahasiswa_id', $mahasiswaId)
+        $totalTugasDiKelas = Penilaian::where('kelas_id', $kelasId)->where('kategori', 'tugas')->count();
+        $totalUtsDiKelas   = Penilaian::where('kelas_id', $kelasId)->where('kategori', 'uts')->count();
+        $totalUasDiKelas   = Penilaian::where('kelas_id', $kelasId)->where('kategori', 'uas')->count();
+
+        $allPengumpulan = Pengumpulan::whereHas('penilaian', fn($q) => $q->where('kelas_id', $kelasId))
             ->with('penilaian')
             ->get()
-            ->groupBy('penilaian.kategori');
+            ->groupBy('mahasiswa_id');
 
-        // 2. Hitung rata-rata
-        $totalTugasDiKelas = Penilaian::where('kelas_id', $kelasId)->where('kategori', 'tugas')->count();
-        $sumNilaiTugas = $semuaPengumpulan->get('tugas', collect())->sum('nilai_total');
-        $totalTugas = $totalTugasDiKelas > 0 ? round($sumNilaiTugas / $totalTugasDiKelas, 2) : 0;
+        $daftarMahasiswaId = DB::table('anggota_kelases')
+            ->where('kelas_id', $kelasId)
+            ->pluck('mahasiswa_id');
 
-        $totalUts = $this->hitungRataRataKategori($semuaPengumpulan, 'uts');
-        $totalUas = $this->hitungRataRataKategori($semuaPengumpulan, 'uas');
+        foreach ($daftarMahasiswaId as $mId) {
+            $pengumpulanMhs = $allPengumpulan->get($mId, collect())->groupBy('penilaian.kategori');
 
-        $nilaiAkhir = round(
-            ($totalTugas * $kelas->persentase_tugas / 100) +
+            $sumNilaiTugas = $pengumpulanMhs->get('tugas', collect())->sum('nilai_total');
+            $totalTugas = $totalTugasDiKelas > 0 ? round($sumNilaiTugas / $totalTugasDiKelas, 2) : 0;
+
+            $sumNilaiUts = $pengumpulanMhs->get('uts', collect())->sum('nilai_total');
+            $totalUts = $totalUtsDiKelas > 0 ? round($sumNilaiUts / $totalUtsDiKelas, 2) : 0;
+
+            $sumNilaiUas = $pengumpulanMhs->get('uas', collect())->sum('nilai_total');
+            $totalUas = $totalUasDiKelas > 0 ? round($sumNilaiUas / $totalUasDiKelas, 2) : 0;
+
+            $nilaiAkhir = round(
+                ($totalTugas * $kelas->persentase_tugas / 100) +
                 ($totalUts * $kelas->persentase_uts / 100) +
                 ($totalUas * $kelas->persentase_uas / 100),
-            2
-        );
+                2
+            );
 
-        $payload = [
-            'semester_id'       => $kelas->semester_id,
-            'mata_kuliah_id'    => $kelas->mata_kuliah_id,
-            'total_tugas'       => $totalTugas,
-            'total_uts'         => $totalUts,
-            'total_uas'         => $totalUas,
-            'nilai_akhir_angka' => $nilaiAkhir,
-            'nilai_huruf'       => $this->konversiHuruf($nilaiAkhir),
-            'nilai_indeks'      => $this->konversiIndeks($nilaiAkhir),
-        ];
+            $payload = [
+                'semester_id'       => $kelas->semester_id,
+                'mata_kuliah_id'    => $kelas->mata_kuliah_id,
+                'total_tugas'       => $totalTugas,
+                'total_uts'         => $totalUts,
+                'total_uas'         => $totalUas,
+                'nilai_akhir_angka' => $nilaiAkhir,
+                'nilai_huruf'       => $this->konversiHuruf($nilaiAkhir),
+                'nilai_indeks'      => $this->konversiIndeks($nilaiAkhir),
+            ];
 
-        // 3. 🔥 SIMPAN/UPDATE UNIK PER KELAS
-        // Menggunakan updateOrCreate dengan mahasiswa_id & kelas_id sebagai filter.
-        // Jika admin mengoreksi nilai di kelas yang sama, nilai terupdate.
-        // Jika mahasiswa mengulang di kelas lain, nilai tersimpan di record baru.
-        RekapNilai::updateOrCreate(
-            [
-                'mahasiswa_id' => $mahasiswaId,
-                'kelas_id'     => $kelasId
-            ],
-            $payload
-        );
+            RekapNilai::updateOrCreate(
+                [
+                    'mahasiswa_id' => $mId,
+                    'kelas_id'     => $kelasId
+                ],
+                $payload
+            );
+        }
     }
 
     private function hitungRataRataKategori($semuaPengumpulan, $kategori)

@@ -178,7 +178,7 @@ class KelolaKHSController extends Controller
                 'nik'  => '01 1409 053'
             ],
             'Teknik Informatika' => [
-                'nama' => 'Ahmad Riad, M.Kom',
+                'nama' => 'Amrul Hadiyanoor, S.Kom, M.Kom',
                 'nip'  => '19850412 201302 1 005'
             ],
             'Komputerisasi Akuntansi' => [

@@ -273,11 +273,11 @@
                     <div class="predikat-box">
                         Predikat:
                         @if ($ipk >= 3.51)
-                            Cumlaude
-                        @elseif($ipk >= 3.0)
                             Sangat Memuaskan
-                        @elseif($ipk >= 2.75)
+                        @elseif($ipk >= 3.0)
                             Memuaskan
+                        @elseif($ipk >= 2.75)
+                            Bagus
                         @else
                             -
                         @endif

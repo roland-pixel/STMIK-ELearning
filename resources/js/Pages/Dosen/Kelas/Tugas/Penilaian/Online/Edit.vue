@@ -25,17 +25,33 @@ const makeClientKey = () => {
 const isSubmitting = ref(false);
 
 /**
- * Convert ISO -> datetime-local value (YYYY-MM-DDTHH:mm)
+ * Convert ISO UTC -> datetime-local value (YYYY-MM-DDTHH:mm) sesuai timezone lokal browser
  */
 const isoToDatetimeLocal = (iso) => {
     if (!iso) return "";
-    const d = new Date(iso);
+    
+    let dateStr = String(iso).trim();
+    
+    // Jika format dari database menggunakan spasi (Y-m-d H:i:s), ubah jadi format ISO standar T
+    if (!dateStr.includes("T") && dateStr.includes(" ")) {
+        dateStr = dateStr.replace(" ", "T");
+    }
+
+    // Pastikan string ditandai sebagai UTC jika belum ada flag 'Z' atau offset '+/='
+    if (!dateStr.includes("Z") && !dateStr.includes("+") && !dateStr.match(/-\d{2}:\d{2}$/)) {
+        dateStr += "Z";
+    }
+
+    const d = new Date(dateStr);
     if (Number.isNaN(d.getTime())) return "";
+
+    // Ganti semua getUTC... menjadi method local time bawaan JavaScript
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const dd = String(d.getDate()).padStart(2, "0");
     const hh = String(d.getHours()).padStart(2, "0");
     const mi = String(d.getMinutes()).padStart(2, "0");
+    
     return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
 };
 
@@ -230,9 +246,19 @@ const removeExistingImage = (q, img) => {
 
 const toLaravelDateTime = (datetimeLocal) => {
     if (!datetimeLocal) return "";
-    const [date, time] = String(datetimeLocal).split("T");
-    if (!date || !time) return "";
-    return `${date} ${time}:00`;
+    
+    const d = new Date(datetimeLocal);
+    if (Number.isNaN(d.getTime())) return "";
+
+    // Mengonversi waktu lokal kembali ke format Y-m-d H:i:s UTC untuk dikirim ke backend
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(d.getUTCDate()).padStart(2, "0");
+    const hh = String(d.getUTCHours()).padStart(2, "0");
+    const mi = String(d.getUTCMinutes()).padStart(2, "0");
+    const ss = "00"; 
+
+    return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
 };
 
 const buildFormData = () => {

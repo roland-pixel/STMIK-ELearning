@@ -18,6 +18,8 @@ class Mahasiswa extends Model
         'status',
         'jenis_program',
         'status_masuk',
+        'tanggal_masuk',
+        'tanggal_lulus',
     ];
 
     protected $casts = [

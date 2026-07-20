@@ -7,6 +7,7 @@ use App\Models\Kelas;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Carbon\Carbon; // Pastikan Carbon di-import di atas
 use Inertia\Inertia;
 
 class KelasDetailController extends Controller
@@ -232,8 +233,21 @@ class KelasDetailController extends Controller
                 ->keyBy('penilaian_id');
         }
 
-        $penilaians = $penilaiansRaw->map(function ($p) use ($pengumpulanByPenilaian) {
+        // Variabel pembantu pengecekan real-time penutupan semester
+        $now = Carbon::now();
+        $tanggalSelesaiSemester = data_get($kelasData, 'semester.tanggal_selesai');
+        $isSemesterEnded = $tanggalSelesaiSemester 
+            ? Carbon::parse($tanggalSelesaiSemester)->endOfDay()->isBefore($now) 
+            : false;
+
+        $penilaians = $penilaiansRaw->map(function ($p) use ($pengumpulanByPenilaian, $isSemesterEnded, $now) {
             $peng = $pengumpulanByPenilaian->get($p['id']);
+            
+            // Pengecekan real-time untuk tenggat waktu kuis individual
+            $isTenggatPassed = $p['tenggat_waktu'] 
+                ? Carbon::parse($p['tenggat_waktu'])->isBefore($now) 
+                : false;
+
             return [
                 'id' => $p['id'],
                 'uuid' => $p['uuid'],
@@ -243,6 +257,10 @@ class KelasDetailController extends Controller
                 'mode_penilaian' => $p['mode_penilaian'],
                 'tenggat_waktu' => $p['tenggat_waktu'],
                 'created_at' => $p['created_at'],
+                
+                // DATA KONDISIONAL BARU: Menandakan kuis terkunci atau tidak
+                'is_locked' => $isTenggatPassed || $isSemesterEnded,
+                
                 'my' => [
                     'started_at' => $peng?->waktu_mulai ? (string) $peng->waktu_mulai : null,
                     'submitted_at' => $peng?->waktu_selesai ? (string) $peng->waktu_selesai : null,

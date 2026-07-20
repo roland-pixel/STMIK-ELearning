@@ -122,7 +122,6 @@
                                     </div>
 
                                     {{-- Modal konfirmasi --}}
-                                    {{-- Modal konfirmasi --}}
                                     <dialog id="hapus-jurusan-{{ $item->id }}"
                                         class="fixed inset-0 z-50 m-auto backdrop:bg-black/40 rounded-2xl p-0 open:flex open:items-center open:justify-center border-0 bg-transparent shadow-none">
 

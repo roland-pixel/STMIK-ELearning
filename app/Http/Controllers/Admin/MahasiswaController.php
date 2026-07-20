@@ -78,6 +78,10 @@ class MahasiswaController extends Controller
             'status' => ['required', Rule::in(['aktif', 'lulus'])],
             'jenis_program' => ['required', Rule::in(['reguler', 'malam', 'pegawai'])],
             'status_masuk' => ['required', Rule::in(['transfer', 'normal'])],
+
+            // Tambahan Validasi Tanggal
+            'tanggal_masuk' => ['required', 'date'],
+            'tanggal_lulus' => ['nullable', 'date', 'required_if:status,lulus', 'after_or_equal:tanggal_masuk'],
         ]);
 
         DB::transaction(function () use ($validated) {
@@ -89,6 +93,9 @@ class MahasiswaController extends Controller
                 'peran' => 'mahasiswa',
             ]);
 
+            // Bersihkan tanggal_lulus jika statusnya ternyata masih 'aktif'
+            $tanggalLulus = $validated['status'] === 'lulus' ? $validated['tanggal_lulus'] : null;
+
             Mahasiswa::create([
                 'uuid' => (string) Str::uuid(),
                 'user_id' => $user->id,
@@ -98,6 +105,8 @@ class MahasiswaController extends Controller
                 'status' => $validated['status'],
                 'jenis_program' => $validated['jenis_program'],
                 'status_masuk' => $validated['status_masuk'],
+                'tanggal_masuk' => $validated['tanggal_masuk'], // <-- Tambahan field
+                'tanggal_lulus' => $tanggalLulus,               // <-- Tambahan field
             ]);
         });
 
@@ -141,13 +150,17 @@ class MahasiswaController extends Controller
             'status' => ['required', Rule::in(['aktif', 'lulus'])],
             'jenis_program' => ['required', Rule::in(['reguler', 'malam', 'pegawai'])],
             'status_masuk' => ['required', Rule::in(['transfer', 'normal'])],
+
+            // Tambahan Validasi Tanggal
+            'tanggal_masuk' => ['required', 'date'],
+            'tanggal_lulus' => ['nullable', 'date', 'required_if:status,lulus', 'after_or_equal:tanggal_masuk'],
         ]);
 
         DB::transaction(function () use ($validated, $mahasiswa) {
             $mahasiswa->user->update([
                 'nama_lengkap' => $validated['nama_lengkap'],
                 'email' => $validated['email'],
-                'peran' => 'mahasiswa', // jaga-jaga
+                'peran' => 'mahasiswa',
             ]);
 
             if (!empty($validated['password'])) {
@@ -156,6 +169,9 @@ class MahasiswaController extends Controller
                 ]);
             }
 
+            // Bersihkan tanggal_lulus jika status diubah kembali dari 'lulus' ke 'aktif'
+            $tanggalLulus = $validated['status'] === 'lulus' ? $validated['tanggal_lulus'] : null;
+
             $mahasiswa->update([
                 'jurusan_id' => $validated['jurusan_id'],
                 'nim' => $validated['nim'],
@@ -163,6 +179,8 @@ class MahasiswaController extends Controller
                 'status' => $validated['status'],
                 'jenis_program' => $validated['jenis_program'],
                 'status_masuk' => $validated['status_masuk'],
+                'tanggal_masuk' => $validated['tanggal_masuk'], // <-- Tambahan field
+                'tanggal_lulus' => $tanggalLulus,               // <-- Tambahan field
             ]);
         });
 
@@ -174,7 +192,6 @@ class MahasiswaController extends Controller
     public function destroy(Mahasiswa $mahasiswa)
     {
         try {
-            // hapus user, mahasiswa ikut kehapus (cascade)
             $user = $mahasiswa->user;
 
             DB::transaction(function () use ($user) {
@@ -185,7 +202,6 @@ class MahasiswaController extends Controller
                 ->route('admin.mahasiswas.index')
                 ->with('success', 'Mahasiswa berhasil dihapus.');
         } catch (\Illuminate\Database\QueryException $e) {
-
             return redirect()
                 ->route('admin.mahasiswas.index')
                 ->with(

@@ -18,7 +18,6 @@
             </div>
         @endif
 
-        {{-- Toolbar --}}
         {{-- Toolbar & Filters --}}
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <form method="GET" action="{{ route('admin.mahasiswas.index') }}" class="space-y-4">
@@ -110,7 +109,7 @@
         {{-- Table card --}}
         <div class="rounded-2xl border border-slate-200 bg-white shadow-soft">
             <div class="max-w-full min-w-0 overflow-x-auto">
-                <table class="min-w-[980px] w-full divide-y divide-slate-200">
+                <table class="min-w-[1050px] w-full divide-y divide-slate-200">
                     <thead class="bg-slate-50 sticky top-0 z-10">
                         <tr>
                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">#
@@ -125,6 +124,8 @@
                                 Jurusan</th>
                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                                 Angkatan</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                Status</th>
                             <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
                                 Aksi</th>
                         </tr>
@@ -157,6 +158,28 @@
 
                                 <td class="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">
                                     {{ $item->angkatan }}
+                                </td>
+
+                                {{-- Kolom Status Baru --}}
+                                <td class="px-4 py-3 text-sm whitespace-nowrap">
+                                    @if (htmlentities($item->status) == 'aktif')
+                                        <span
+                                            class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200">
+                                            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                                            Aktif
+                                        </span>
+                                    @elseif(htmlentities($item->status) == 'lulus')
+                                        <span
+                                            class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 border border-blue-200">
+                                            <span class="h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                                            Lulus
+                                        </span>
+                                    @else
+                                        <span
+                                            class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 border border-slate-200">
+                                            {{ $item->status ?? '-' }}
+                                        </span>
+                                    @endif
                                 </td>
 
                                 <td class="px-4 py-3 text-right">
@@ -243,7 +266,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="px-4 py-10 text-center text-sm text-slate-500">
+                                <td colspan="8" class="px-4 py-10 text-center text-sm text-slate-500">
                                     Belum ada data mahasiswa.
                                 </td>
                             </tr>

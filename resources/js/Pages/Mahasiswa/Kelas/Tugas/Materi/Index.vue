@@ -15,28 +15,64 @@ const classes = computed(
     () => page.props.mahasiswa_classes ?? page.props.dosen_classes ?? [],
 );
 
-// ✅ nama dosen dari data kelas (lebih aman daripada page.props.auth.user)
+// ✅ nama dosen dari data kelas (lebih aman)
 const dosenNama = computed(() => {
-    return props.kelas?.dosen?.nama_lengkap ?? props.kelas?.dosen ?? "Dosen";
+    const dosen = props.kelas?.dosen;
+    if (!dosen) return "Dosen";
+    if (typeof dosen === "string") return dosen;
+    return dosen.nama_lengkap ?? "Dosen";
 });
 
 const openMenuId = ref(null);
 
+/** ================= HELPER CONVERT UTC TO LOCAL (WIB/WITA/WIT) ================= */
+const parseToUtc = (isoLike) => {
+    if (!isoLike) return null;
+    let dateStr = String(isoLike).trim();
+
+    // Jika string dari Laravel polos (contoh: "2026-06-21 08:30:00")
+    if (!dateStr.includes("Z") && !dateStr.includes("+") && !dateStr.includes("T")) {
+        dateStr = dateStr.replace(" ", "T") + "+00:00";
+    } else if (!dateStr.includes("Z") && !dateStr.includes("+") && dateStr.includes("T")) {
+        dateStr = dateStr + "Z";
+    }
+    
+    const d = new Date(dateStr);
+    return Number.isNaN(d.getTime()) ? null : d;
+};
+
 const fmtDate = (iso) => {
-    if (!iso) return "";
-    const d = new Date(iso);
-    return d.toLocaleString("id-ID", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-    });
+    const d = parseToUtc(iso);
+    if (!d) return String(iso ?? ""); 
+    
+    try {
+        return new Intl.DateTimeFormat("id-ID", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+            timeZoneName: "short", // Otomatis cetak WIB / WITA / WIT
+        }).format(d);
+    } catch (e) {
+        // Fallback jika terjadi error pada Intl
+        return d.toLocaleString("id-ID", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+        });
+    }
 };
 
 const hostLabel = (url) => {
+    if (!url) return "Link";
     try {
-        const u = new URL(url);
+        // Mencegah error 'Invalid URL' jika string link tidak diawali http/https
+        const validUrl = url.match(/^https?:\/\//) ? url : `http://${url}`;
+        const u = new URL(validUrl);
         return u.hostname.replace("www.", "");
     } catch {
         return "Link";
@@ -59,15 +95,26 @@ const fileBadge = (name) => {
     return (ext || "FILE").toUpperCase();
 };
 
+// 🛠️ LOGIKA YANG DIUBAH: Pengecekan file Office untuk di-preview
 const filePublicUrl = (m) => {
-    if (!m?.file_path) return null;
-    return `/storage/${m.file_path}`;
+    const url = m?.download_url;
+    if (!url) return null;
+
+    const ext = fileExt(m?.file_name);
+    
+    // Jika formatnya Office, lempar ke Microsoft Viewer (buka tab baru)
+    if (["doc", "docx", "ppt", "pptx", "xls", "xlsx"].includes(ext)) {
+        return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`;
+    }
+    
+    // Default untuk PDF, gambar, dll (biar browser yang atur sendiri)
+    return url;
 };
 </script>
 
 <template>
     <AppLayout :classes="classes" title="Materi Kelas">
-        <div class="min-h-screen bg-slate-50">
+        <div class="w-full min-h-[calc(100vh-4rem)] bg-slate-50">
             <div class="max-w-5xl mx-auto px-4 sm:px-6 py-6">
                 <div
                     v-if="materis.length === 0"
@@ -82,9 +129,7 @@ const filePublicUrl = (m) => {
                         :key="m.id"
                         class="bg-white rounded-2xl shadow-sm"
                     >
-                        <!-- HEADER -->
                         <div class="p-4 sm:p-5 flex items-start gap-3">
-                            <!-- ICON BIRU (nyaman di mata) -->
                             <div
                                 class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white"
                                 title="Materi"
@@ -115,7 +160,6 @@ const filePublicUrl = (m) => {
                                         </div>
                                     </div>
 
-                                    <!-- MENU (mahasiswa: cuma "Salin link", gak ada edit/hapus) -->
                                     <div class="relative shrink-0">
                                         <button
                                             type="button"
@@ -186,7 +230,6 @@ const filePublicUrl = (m) => {
                             </div>
                         </div>
 
-                        <!-- LAMPIRAN -->
                         <div
                             v-if="m.link_url || m.file_path"
                             class="px-4 sm:px-5 pb-5"
@@ -194,7 +237,6 @@ const filePublicUrl = (m) => {
                             <div
                                 class="grid grid-cols-1 sm:grid-cols-2 rounded-xl border border-gray-200 overflow-hidden bg-white"
                             >
-                                <!-- LINK -->
                                 <a
                                     v-if="m.link_url"
                                     :href="m.link_url"
@@ -230,7 +272,6 @@ const filePublicUrl = (m) => {
                                     <div class="ml-auto text-slate-400">›</div>
                                 </a>
 
-                                <!-- FILE -->
                                 <a
                                     v-if="m.file_path"
                                     :href="filePublicUrl(m)"
@@ -263,7 +304,6 @@ const filePublicUrl = (m) => {
                 </div>
             </div>
 
-            <!-- backdrop close menu -->
             <div
                 v-if="openMenuId !== null"
                 class="fixed inset-0 z-0"

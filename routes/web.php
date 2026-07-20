@@ -44,12 +44,14 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', [LandingPageController::class, 'index'])->name('landing');
 
 Route::get('/login',  [LoginController::class, 'showLoginForm'])->name('login');
-Route::post('/login', [LoginController::class, 'login'])->name('login.post');
-Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
-
-// Tambahkan Route Google Login di sini
 Route::get('/auth/google', [LoginController::class, 'redirectToGoogle'])->name('google.login');
-Route::get('/auth/google/callback', [LoginController::class, 'handleGoogleCallback'])->name('google.callback');
+
+Route::middleware(['throttle:5,1'])->group(function () {
+    Route::post('/login', [LoginController::class, 'login'])->name('login.post');
+    Route::get('/auth/google/callback', [LoginController::class, 'handleGoogleCallback'])->name('google.callback');
+});
+
+Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 /*
 |--------------------------------------------------------------------------
@@ -139,6 +141,7 @@ Route::middleware(['auth', 'role:admin'])
         Route::get('activity-logs', [ActivityLogController::class, 'index'])->name('activity_logs.index');
 
         Route::get('cumlaude', [CumlaudeController::class, 'index'])->name('cumlaude.index');
+        Route::get('mahasiswa-terbaik', [CumlaudeController::class, 'mahasiswaTerbaik'])->name('mahasiswa-terbaik.index');
     });
 
 /*
@@ -179,6 +182,10 @@ Route::middleware(['auth', 'role:dosen'])
 
             Route::post('/anggota', [DosenKelasDetailController::class, 'addMahasiswa'])->name('anggota.store');
 
+            Route::post('materi/initiate', [DosenMateriController::class, 'initiateMultipart'])->name('materi.upload.chunk');
+
+            Route::post('materi/initiate', [DosenMateriController::class, 'initiateMultipart'])->name('materi.initiate');
+            Route::post('materi/complete', [DosenMateriController::class, 'completeMultipart'])->name('materi.complete');
             /** ===== Materi ===== */
             Route::resource('materi', DosenMateriController::class)
                 ->only(['index', 'create', 'store', 'edit', 'update', 'destroy'])
@@ -256,6 +263,11 @@ Route::middleware(['auth', 'role:mahasiswa'])
                     ->name('kerjakan');
                 Route::post('/submit', [PengerjaanPenilaianController::class, 'submit'])
                     ->name('submit');
+
+                Route::post('/initiate-multipart', [PengerjaanPenilaianController::class, 'initiateMultipart'])
+                    ->name('initiate');
+                Route::post('/complete-multipart', [PengerjaanPenilaianController::class, 'completeMultipart'])
+                    ->name('complete');
             });
         });
     });

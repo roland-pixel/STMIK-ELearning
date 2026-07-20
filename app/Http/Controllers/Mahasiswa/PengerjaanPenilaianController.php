@@ -12,10 +12,11 @@ use App\Models\RekapNilai;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Carbon\Carbon;
-// 1. Import Fasad Cache
 use Illuminate\Support\Facades\Cache;
 
 class PengerjaanPenilaianController extends Controller
@@ -28,7 +29,6 @@ class PengerjaanPenilaianController extends Controller
         $mahasiswaId = Auth::user()?->mahasiswa?->id;
         abort_if(!$mahasiswaId, 403, 'Profil mahasiswa tidak ditemukan.');
 
-        // Menggunakan caching untuk status pendaftaran mahasiswa agar tidak hit DB terus-menerus
         $isEnrolled = Cache::remember("kelas:{$kelas->id}:mhs:{$mahasiswaId}:enrolled", 3600, function () use ($kelas, $mahasiswaId) {
             return AnggotaKelas::where('kelas_id', $kelas->id)
                 ->where('mahasiswa_id', $mahasiswaId)
@@ -47,12 +47,10 @@ class PengerjaanPenilaianController extends Controller
     {
         $mahasiswaId = $this->ensureEnrolled($kelas);
 
-        // Pengumpulan bersifat dinamis (real-time per mahasiswa), jangan dicache permanen/lama
         $pengumpulan = Pengumpulan::where('penilaian_id', $penilaian->id)
             ->where('mahasiswa_id', $mahasiswaId)
             ->first();
 
-        // Cache pengecekan tipe soal di penilaian ini (Sama untuk semua mahasiswa)
         $hasManualGrading = Cache::remember("penilaian:{$penilaian->id}:has_manual_grading", 3600, function () use ($penilaian) {
             return $penilaian->pertanyaans()
                 ->whereIn('jenis_pertanyaan', ['essai', 'upload_file'])
@@ -85,7 +83,6 @@ class PengerjaanPenilaianController extends Controller
             return back()->withErrors(['message' => 'Waktu pengerjaan sudah berakhir.']);
         }
 
-        // Mengunci waktu mulai agar jika browser tertutup/ganti perangkat, durasi ujian tetap berjalan real-time
         $pengumpulan = Pengumpulan::firstOrCreate(
             ['penilaian_id' => $penilaian->id, 'mahasiswa_id' => $mahasiswaId],
             ['uuid' => Str::uuid(), 'waktu_mulai' => Carbon::now()]
@@ -105,7 +102,7 @@ class PengerjaanPenilaianController extends Controller
 
             $penilaian->pertanyaans->transform(function ($pt) {
                 $pt->images->transform(function ($img) {
-                    $img->url = \Illuminate\Support\Facades\Storage::disk('public')->url($img->path);
+                    $img->url = Storage::disk('public')->url($img->path);
                     return $img;
                 });
                 return $pt;
@@ -119,6 +116,149 @@ class PengerjaanPenilaianController extends Controller
             'penilaian' => $cachedPenilaian,
             'pengumpulan' => $pengumpulan
         ]);
+    }
+
+    /**
+     * Endpoint 1: Menginisialisasi Multipart Upload & Generate Presigned URL
+     */
+    public function initiateMultipart(Request $request, Kelas $kelas, Penilaian $penilaian)
+    {
+        $mahasiswaId = $this->ensureEnrolled($kelas);
+
+        $request->validate([
+            'filename' => ['required', 'string'],
+            'total_chunks' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $bucket = config('filesystems.disks.s3.bucket');
+        $cleanName = time() . '_' . str_replace(' ', '_', $request->input('filename'));
+        
+        // Path spesifik untuk jawaban mahasiswa
+        $key = "jawaban/penilaian_{$penilaian->id}/mhs_{$mahasiswaId}/{$cleanName}";
+
+        try {
+            $internalEndpoint = config('filesystems.disks.s3.endpoint'); 
+
+            $internalS3Client = new \Aws\S3\S3Client([
+                'version' => 'latest',
+                'region'  => config('filesystems.disks.s3.region', 'us-east-1'),
+                'endpoint' => $internalEndpoint,
+                'use_path_style_endpoint' => true,
+                'credentials' => [
+                    'key'    => config('filesystems.disks.s3.key'),
+                    'secret' => config('filesystems.disks.s3.secret'),
+                ],
+                'http' => [
+                    'verify' => false,
+                ]
+            ]);
+
+            $extension = strtolower(pathinfo($request->input('filename'), PATHINFO_EXTENSION));
+            
+            $mimeTypes = [
+                'pdf'  => 'application/pdf',
+                'png'  => 'image/png',
+                'jpg'  => 'image/jpeg',
+                'jpeg' => 'image/jpeg',
+                'doc'  => 'application/msword',
+                'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'xls'  => 'application/vnd.ms-excel',
+                'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'zip'  => 'application/zip',
+                'rar'  => 'application/vnd.rar',
+                'txt'  => 'text/plain',
+            ];
+
+            $contentType = $mimeTypes[$extension] ?? 'application/octet-stream';
+
+            $result = $internalS3Client->createMultipartUpload([
+                'Bucket'      => $bucket,
+                'Key'         => $key,
+                'ContentType' => $contentType,
+            ]);
+
+            $uploadId = $result['UploadId'];
+            $externalUrl = config('filesystems.disks.s3.url'); 
+
+            $externalS3Client = new \Aws\S3\S3Client([
+                'version' => 'latest',
+                'region'  => config('filesystems.disks.s3.region', 'us-east-1'),
+                'endpoint' => $externalUrl, 
+                'use_path_style_endpoint' => true,
+                'credentials' => [
+                    'key'    => config('filesystems.disks.s3.key'),
+                    'secret' => config('filesystems.disks.s3.secret'),
+                ],
+            ]);
+
+            $urls = [];
+
+            for ($i = 1; $i <= $request->input('total_chunks'); $i++) {
+                $command = $externalS3Client->getCommand('UploadPart', [
+                    'Bucket'     => $bucket,
+                    'Key'        => $key,
+                    'UploadId'   => $uploadId,
+                    'PartNumber' => $i,
+                ]);
+
+                $presignedRequest = $externalS3Client->createPresignedRequest($command, '+30 minutes');
+                $urls[$i] = (string) $presignedRequest->getUri();
+            }
+
+            return response()->json([
+                'upload_id' => $uploadId,
+                'key'       => $key,
+                'urls'      => $urls
+            ]);
+        } catch (\Exception $e) {
+            Log::error('S3 Chunk Error (Mahasiswa): ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Gagal inisiasi storage: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Endpoint 2: Menyuruh MinIO menggabungkan potongan file jawaban
+     */
+    public function completeMultipart(Request $request, Kelas $kelas, Penilaian $penilaian)
+    {
+        $this->ensureEnrolled($kelas);
+
+        $request->validate([
+            'upload_id'          => ['required', 'string'],
+            'key'                => ['required', 'string'],
+            'parts'              => ['required', 'array'],
+            'parts.*.PartNumber' => ['required', 'integer'],
+            'parts.*.ETag'       => ['required', 'string'], 
+        ]);
+
+        $disk = Storage::disk('s3');
+        /** @var \Aws\S3\S3Client $s3Client */
+        $s3Client = $disk->getClient();
+        $bucket = config('filesystems.disks.s3.bucket');
+
+        try {
+            $s3Client->completeMultipartUpload([
+                'Bucket'          => $bucket,
+                'Key'             => $request->input('key'),
+                'UploadId'        => $request->input('upload_id'),
+                'MultipartUpload' => [
+                    'Parts' => $request->input('parts'),
+                ],
+            ]);
+
+            return response()->json([
+                'status'    => true,
+                'file_path' => $request->input('key'),
+                'message'   => 'File jawaban berhasil diupload!'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Gagal menyelesaikan upload file: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -136,12 +276,13 @@ class PengerjaanPenilaianController extends Controller
             return abort(403, 'Jawaban sudah dikirim sebelumnya.');
         }
 
+        // PERUBAHAN: Validasi disesuaikan untuk menerima file_path berwujud string, bukan objek File
         $request->validate([
             'jawaban' => 'required|array',
             'jawaban.*.pertanyaan_id' => 'required|exists:pertanyaans,id',
             'jawaban.*.opsi_jawaban_id' => 'nullable|exists:opsi_jawabans,id',
             'jawaban.*.text_jawaban' => 'nullable|string|max:1000',
-            'jawaban.*.file' => 'nullable|file|max:10240|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx,zip,txt,rar',
+            'jawaban.*.file_path' => 'nullable|string', 
         ]);
 
         DB::beginTransaction();
@@ -149,9 +290,6 @@ class PengerjaanPenilaianController extends Controller
             $this->simpanJawabanDanHitungNilai($request, $pengumpulan, $penilaian);
             $this->regenerateRekapNilai($pengumpulan->id);
             DB::commit();
-
-            // 💡 Catatan: Cache "enrolled" tidak perlu di-forget di sini agar saat redirect ke halaman 'show', 
-            // Laravel langsung mengambil data dari Redis tanpa membebani database utama lagi.
 
             return redirect()->route('mahasiswa.kelas.penilaian.online.show', [$kelas->uuid, $penilaian->uuid])
                 ->with('success', 'Jawaban berhasil dikirim.');
@@ -166,13 +304,9 @@ class PengerjaanPenilaianController extends Controller
         foreach ($request->jawaban as $index => $item) {
             $pertanyaan = $penilaian->pertanyaans()->find($item['pertanyaan_id']);
             $nilaiPerSoal = 0;
-            $filePath = null;
-
-            $fileKey = "jawaban.{$index}.file";
-            if ($request->hasFile($fileKey)) {
-                $file = $request->file($fileKey);
-                $filePath = $file->store("jawaban/{$pengumpulan->uuid}", 'public');
-            }
+            
+            // PERUBAHAN: Tangkap file_path langsung dari request (sudah diupload via MinIO presigned)
+            $filePath = $item['file_path'] ?? null;
 
             if ($pertanyaan->jenis_pertanyaan === 'pilihan_ganda' && !empty($item['opsi_jawaban_id'])) {
                 $isCorrect = DB::table('opsi_jawabans')

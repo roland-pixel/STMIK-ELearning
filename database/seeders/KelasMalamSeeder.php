@@ -501,6 +501,7 @@ class KelasMalamSeeder extends Seeder
         ];
 
         // 5. Loop Proses Pembuatan Kelas & Anggota Khusus Malam
+        // 5. Loop Proses Pembuatan Kelas & Anggota Khusus Malam
         foreach ($dataKelasMalam as $item) {
             if (!$allMatkuls->has($item['nama_mk']) || !$semesters->has($item['semester'])) {
                 continue;
@@ -509,10 +510,18 @@ class KelasMalamSeeder extends Seeder
             $mk = $allMatkuls->get($item['nama_mk']);
             $currentSemester = $semesters->get($item['semester']);
 
+            // PERBAIKAN 1: Ambil satu dosen secara acak dari list dosen baru agar terdistribusi adil
+            // Jika ingin dikunci untuk PTI (misal Ibu Siti Cholifah), jalankan kondisi if seperti KelasSeeder sebelumnya
+            if ($item['nama_mk'] === 'PENGANTAR TEKNOLOGI INFORMASI') {
+                $dosenAcak = $allDosen->where('nama_lengkap', 'Siti Cholifah, S.Kom, M.Kom')->first() ?? $allDosen->random();
+            } else {
+                $dosenAcak = $allDosen->random();
+            }
+
             // Buat Kelas Baru (Abjad otomatis N sesuai array)
             $kelas = Kelas::create([
                 'uuid' => Str::uuid(),
-                'dosen_id' => $dosenSiti->id,
+                'dosen_id' => $dosenAcak->id, // Menggunakan dosen hasil acak/kondisi di atas
                 'mata_kuliah_id' => $mk->id,
                 'semester_id' => $currentSemester->id,
                 'nama_kelas' => $mk->nama_mk . ' - ' . $item['abjad'],
@@ -540,6 +549,24 @@ class KelasMalamSeeder extends Seeder
 
             // Masukkan Mahasiswa Malam ke Anggota Kelas
             foreach ($targetMahasiswaMalam as $mhs) {
+
+                // PERBAIKAN 2: Sesuaikan logika mengulang kelas malam untuk skenario PENGANTAR TEKNOLOGI INFORMASI
+                if ($item['semester'] === 'Ganjil 2023/2024' && $item['nama_mk'] === 'PENGANTAR TEKNOLOGI INFORMASI') {
+
+                    // Catatan: Jika Kharis Raihan terdaftar sebagai program 'malam', gunakan pengecekan nama ini.
+                    // Namun jika Kharis adalah mahasiswa 'reguler' (pagi), dia tidak akan masuk ke loop ini 
+                    // karena sudah di-handle eksklusif oleh KelasSeeder pagi.
+                    if ($mhs->user && $mhs->user->nama_lengkap === 'Kharis Raihan') {
+                        AnggotaKelas::create([
+                            'kelas_id' => $kelas->id,
+                            'mahasiswa_id' => $mhs->id,
+                            'tanggal_gabung' => now(),
+                        ]);
+                    }
+                    continue; // Lewati mahasiswa malam lainnya khusus untuk matkul PTI mengulang di semester ini
+                }
+
+                // Kondisi normal untuk kelas/mata kuliah lainnya
                 AnggotaKelas::create([
                     'kelas_id' => $kelas->id,
                     'mahasiswa_id' => $mhs->id,

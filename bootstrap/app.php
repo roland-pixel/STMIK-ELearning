@@ -12,13 +12,18 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // 1. Mendaftarkan middleware bawaan web & Inertia
         $middleware->web(append: [
             HandleInertiaRequests::class,
         ]);
-        $middleware->append(\App\Http\Middleware\TrustProxies::class);
+
+        // 2. Perbaikan Utama: Mempercayai proxy Cloudflare agar me-forward HTTPS dengan benar
+        $middleware->trustProxies(at: '*');
+
+        // 3. Registrasi alias middleware kustom
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
-        ]); 
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

@@ -16,7 +16,7 @@ const tabClass = (key) => {
 </script>
 
 <template>
-    <div class="sticky top-0 z-30 -mx-4 sm:mx-0">
+    <div class="z-30 -mx-4 sm:mx-0">
         <div class="bg-white/90 backdrop-blur border-b border-gray-200/70">
             <div class="px-4 sm:px-0">
                 <div class="flex items-center justify-between gap-4">

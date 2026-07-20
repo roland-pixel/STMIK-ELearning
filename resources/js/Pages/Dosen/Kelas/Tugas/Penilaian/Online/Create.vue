@@ -146,9 +146,11 @@ const removeImageAt = (qIndex, imgIndex) => {
 
 const toLaravelDateTime = (datetimeLocal) => {
     if (!datetimeLocal) return "";
-    const [date, time] = String(datetimeLocal).split("T");
-    if (!date || !time) return "";
-    return `${date} ${time}:00`;
+    const dateObj = new Date(datetimeLocal); 
+    if (isNaN(dateObj.getTime())) return "";
+    
+    // Ini benar untuk kirim ke backend, karena menyimpan patokan UTC global
+    return dateObj.toISOString(); 
 };
 
 const buildFormData = () => {

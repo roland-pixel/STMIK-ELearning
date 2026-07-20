@@ -17,9 +17,12 @@ const openMenuId = ref(null);
 
 const delForm = useForm({});
 const destroyMateri = (materiId) => {
+    // PROTEKSI: Pakai uuid jika ada, jika tidak ada fallback ke id biasa agar tidak crash
+    const kelasParam = props.kelas.uuid || props.kelas.id;
+
     delForm.delete(
         route("dosen.kelas.materi.destroy", {
-            kelas: props.kelas.uuid,
+            kelas: kelasParam,
             materi: materiId,
         }),
         {
@@ -31,14 +34,44 @@ const destroyMateri = (materiId) => {
 
 const fmtDate = (iso) => {
     if (!iso) return "";
-    const d = new Date(iso);
-    return d.toLocaleString("id-ID", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-    });
+    
+    let dateStr = String(iso).trim();
+
+    // Jika Laravel melempar string polos tanpa flag timezone, paksa tempel UTC "Z"
+    if (!dateStr.includes("Z") && !dateStr.includes("+") && !dateStr.includes("T")) {
+        dateStr = dateStr.replace(" ", "T") + "Z";
+    } else if (!dateStr.includes("Z") && !dateStr.includes("+") && dateStr.includes("T")) {
+        dateStr = dateStr + "Z";
+    }
+
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return String(iso);
+
+    try {
+        // Menggunakan Intl format agar seragam dan otomatis memunculkan zona waktu (WIB/WITA/WIT)
+        const formatter = new Intl.DateTimeFormat("id-ID", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+            timeZoneName: "short"
+        });
+        
+        // Menghilangkan tanda koma bawaan standarisasi id-ID jika ada
+        return formatter.format(d).replace(",", "");
+    } catch (e) {
+        // Fallback jika terjadi kegagalan sistem formatting
+        return d.toLocaleString("id-ID", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+        });
+    }
 };
 
 const hostLabel = (url) => {
@@ -67,14 +100,24 @@ const fileBadge = (name) => {
 };
 
 const filePublicUrl = (m) => {
-    if (!m?.file_path) return null;
-    return `/storage/${m.file_path}`;
+    const url = m?.download_url;
+    if (!url) return null;
+
+    const ext = fileExt(m?.file_name);
+    
+    // Jika formatnya Office, lempar ke Microsoft Viewer (buka tab baru)
+    if (["doc", "docx", "ppt", "pptx", "xls", "xlsx"].includes(ext)) {
+        return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`;
+    }
+    
+    // Default untuk PDF, gambar, dll (biar browser yang atur sendiri)
+    return url;
 };
 </script>
 
 <template>
     <AppLayout :classes="classes" title="Materi Kelas">
-        <div class="min-h-screen bg-slate-50">
+        <div class="w-full min-h-[calc(100vh-4rem)] bg-slate-50">
             <div class="max-w-5xl mx-auto px-4 sm:px-6 py-6">
                 <div
                     v-if="materis.length === 0"
@@ -89,9 +132,7 @@ const filePublicUrl = (m) => {
                         :key="m.id"
                         class="bg-white rounded-2xl shadow-sm"
                     >
-                        <!-- HEADER -->
                         <div class="p-4 sm:p-5 flex items-start gap-3">
-                            <!-- ICON ABU-ABU -->
                             <div
                                 class="w-10 h-10 rounded-full bg-gray-400 flex items-center justify-center text-white"
                             >
@@ -121,12 +162,11 @@ const filePublicUrl = (m) => {
                                         </div>
                                     </div>
 
-                                    <!-- MENU -->
                                     <div class="relative shrink-0">
                                         <button
                                             type="button"
-                                            class="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center"
-                                            @click="
+                                            class="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center relative z-30"
+                                            @click.stop="
                                                 openMenuId =
                                                     openMenuId === m.id
                                                         ? null
@@ -146,7 +186,13 @@ const filePublicUrl = (m) => {
 
                                         <div
                                             v-if="openMenuId === m.id"
-                                            class="absolute right-0 mt-2 w-44 bg-white border rounded-xl shadow-lg overflow-hidden z-20"
+                                            class="fixed inset-0 z-20"
+                                            @click="openMenuId = null"
+                                        />
+
+                                        <div
+                                            v-if="openMenuId === m.id"
+                                            class="absolute right-0 mt-2 w-44 bg-white border rounded-xl shadow-lg overflow-hidden z-30"
                                         >
                                             <Link
                                                 class="block px-4 py-2 text-sm hover:bg-slate-50"
@@ -154,8 +200,7 @@ const filePublicUrl = (m) => {
                                                     route(
                                                         'dosen.kelas.materi.edit',
                                                         {
-                                                            kelas: props.kelas
-                                                                .uuid,
+                                                            kelas: props.kelas.uuid || props.kelas.id,
                                                             materi: m.id,
                                                         },
                                                     )
@@ -184,7 +229,6 @@ const filePublicUrl = (m) => {
                             </div>
                         </div>
 
-                        <!-- LAMPIRAN -->
                         <div
                             v-if="m.link_url || m.file_path"
                             class="px-4 sm:px-5 pb-5"
@@ -192,7 +236,6 @@ const filePublicUrl = (m) => {
                             <div
                                 class="grid grid-cols-1 sm:grid-cols-2 rounded-xl border border-gray-300 overflow-hidden bg-white"
                             >
-                                <!-- LINK -->
                                 <a
                                     v-if="m.link_url"
                                     :href="m.link_url"
@@ -227,7 +270,6 @@ const filePublicUrl = (m) => {
                                     <div class="ml-auto text-gray-400">›</div>
                                 </a>
 
-                                <!-- FILE -->
                                 <a
                                     v-if="m.file_path"
                                     :href="filePublicUrl(m)"
@@ -259,12 +301,6 @@ const filePublicUrl = (m) => {
                     </article>
                 </div>
             </div>
-
-            <div
-                v-if="openMenuId !== null"
-                class="fixed inset-0 z-0"
-                @click="openMenuId = null"
-            />
         </div>
     </AppLayout>
 </template>

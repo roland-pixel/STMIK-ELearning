@@ -18,8 +18,8 @@ class NilaiBulkSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Ambil semua kelas yang saat ini belum memiliki nilai sama sekali
-        $allKelas = Kelas::whereDoesntHave('penilaians')->get();
+        // 1. Ambil semua kelas yang saat ini belum memiliki nilai sama sekali beserta relasi yang diperlukan
+        $allKelas = Kelas::with(['mataKuliah', 'semester'])->whereDoesntHave('penilaians')->get();
 
         if ($allKelas->isEmpty()) {
             $this->command->info('Semua kelas sudah memiliki nilai atau tidak ada kelas ditemukan.');
@@ -29,8 +29,8 @@ class NilaiBulkSeeder extends Seeder
         $kategoriList = ['tugas', 'uts', 'uas'];
 
         foreach ($allKelas as $kelas) {
-            // Ambil semua anggota mahasiswa di kelas ini
-            $anggotaKelas = AnggotaKelas::where('kelas_id', $kelas->id)->get();
+            // Ambil semua anggota mahasiswa di kelas ini beserta relasi user-nya
+            $anggotaKelas = AnggotaKelas::with('mahasiswa.user')->where('kelas_id', $kelas->id)->get();
 
             if ($anggotaKelas->isEmpty()) {
                 continue; // Skip jika kelas kosong tidak ada mahasiswa
@@ -56,11 +56,28 @@ class NilaiBulkSeeder extends Seeder
                 // 3. Inject Nilai untuk setiap mahasiswa di dalam kelas
                 foreach ($anggotaKelas as $anggota) {
                     $mahasiswaId = $anggota->mahasiswa_id;
+                    $mahasiswa   = $anggota->mahasiswa;
 
-                    // Generate nilai acak yang masuk akal (antara 75 sampai 98)
-                    $nilaiTugas = rand(80, 100);
-                    $nilaiUts   = rand(80, 100);
-                    $nilaiUas   = rand(80, 100);
+                    // Pastikan data mahasiswa dan user ada sebelum dicek perilakunya
+                    // Menggunakan nama_lengkap karena email mahasiswa sudah dinamis menggunakan format domain stmik.id
+                    $isKharis = ($mahasiswa && $mahasiswa->user && $mahasiswa->user->nama_lengkap === 'Kharis Raihan');
+
+                    // Skenario mengulang untuk mata kuliah PENGANTAR TEKNOLOGI INFORMASI di semester awal
+                    $isPtiLama = ($kelas->mataKuliah && $kelas->mataKuliah->nama_mk === 'PENGANTAR TEKNOLOGI INFORMASI'
+                        && $kelas->semester && $kelas->semester->nama_semester === 'Ganjil 2022/2023');
+
+                    // Skenario Nilai: Jika Kharis di PENGANTAR TEKNOLOGI INFORMASI Ganjil 2022/2023, buat TIDAK LULUS.
+                    // Di luar itu (termasuk saat dia mengulang di semester baru), beri nilai normal yang memuaskan.
+                    if ($isKharis && $isPtiLama) {
+                        $nilaiTugas = rand(45, 55);
+                        $nilaiUts   = rand(40, 50);
+                        $nilaiUas   = rand(35, 48);
+                    } else {
+                        // Generate nilai acak normal yang memuaskan untuk mahasiswa lain & Kharis saat mengulang
+                        $nilaiTugas = rand(75, 100);
+                        $nilaiUts   = rand(70, 100);
+                        $nilaiUas   = rand(75, 100);
+                    }
 
                     $nilaiMapping = [
                         'tugas' => $nilaiTugas,
@@ -71,12 +88,12 @@ class NilaiBulkSeeder extends Seeder
                     // Masukkan ke tabel pengumpulan
                     foreach ($kategoriList as $kat) {
                         Pengumpulan::create([
-                            'uuid'         => (string) Str::uuid(),
-                            'penilaian_id' => $mapPenilaian[$kat],
-                            'mahasiswa_id' => $mahasiswaId,
-                            'waktu_mulai'  => now(),
+                            'uuid'          => (string) Str::uuid(),
+                            'penilaian_id'  => $mapPenilaian[$kat],
+                            'mahasiswa_id'  => $mahasiswaId,
+                            'waktu_mulai'   => now(),
                             'waktu_selesai' => now(),
-                            'nilai_total'  => $nilaiMapping[$kat],
+                            'nilai_total'   => $nilaiMapping[$kat],
                         ]);
                     }
 

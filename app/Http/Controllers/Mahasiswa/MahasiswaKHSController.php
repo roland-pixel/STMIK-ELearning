@@ -166,12 +166,12 @@ class MahasiswaKHSController extends Controller
     {
         $daftarKajur = [
             'Sistem Informasi' => [
-                'nama' => 'Dr. Jane Smith, S.Kom, M.Kom',
-                'nip'  => '19820301 201001 1 002'
+                'nama' => 'Samsuri, S.Kom, M.Kom',
+                'nip'  => '01.1409.053'
             ],
             'Teknik Informatika' => [
-                'nama' => 'Ahmad Riad, M.Kom',
-                'nip'  => '19850412 201302 1 005'
+                'nama' => 'Amrul Hadiyanoor, S.Kom, M.Kom',
+                'nip'  => '01.1109.046'
             ],
             'Komputerisasi Akuntansi' => [
                 'nama' => 'Dewi Lestari, S.E., M.M.',

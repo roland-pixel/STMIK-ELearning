@@ -30,17 +30,29 @@ const mainClass = computed(() =>
 </script>
 
 <template>
-    <div class="min-h-screen bg-gray-50 w-full max-w-full overflow-x-hidden relative">
-        <Topbar :title="title" :kelas="kelas" @toggle-sidebar="toggleSidebar" @open-join="emit('open-join')" />
+    <div class="h-screen w-screen flex flex-col bg-gray-50 overflow-hidden relative">
+        
+        <Topbar 
+            :title="title" 
+            :kelas="kelas" 
+            @toggle-sidebar="toggleSidebar" 
+            @open-join="emit('open-join')" 
+            class="shrink-0"
+        />
 
-        <div class="flex">
+        <div class="flex flex-1 w-full max-w-full overflow-hidden relative">
+            
             <Sidebar :classes="props.classes" :is-open="isSidebarOpen" @close="isSidebarOpen = false" />
 
             <div v-if="isSidebarOpen" class="fixed inset-0 bg-black/40 z-30 md:hidden" @click="isSidebarOpen = false" />
 
-            <main class="flex-1 px-6 py-6 transition-all duration-300" :class="mainClass">
+            <main 
+                class="flex-1 w-full max-w-full min-w-0 h-full overflow-y-auto px-6 py-6 transition-all duration-300" 
+                :class="mainClass"
+            >
                 <slot />
             </main>
+            
         </div>
     </div>
 </template>

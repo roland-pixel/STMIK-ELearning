@@ -9,6 +9,7 @@ use App\Models\Pengumpulan;
 use App\Models\Penilaian;
 use App\Models\Pertanyaan;
 use App\Models\PertanyaanImage;
+use Aws\S3\S3Client; // <-- Tambahan import SDK S3 AWS
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -160,8 +161,23 @@ class PenilaianOnlineController extends Controller
                 ])
                 ->first();
 
-            // 🔥 Mapping detail
+            // 🔥 Mapping detail dengan tambahan Presigned URL MinIO
             if ($pengumpulan) {
+                // Konfigurasi S3 Client khusus MinIO
+                $externalUrl = config('filesystems.disks.s3.url');
+                $bucket = config('filesystems.disks.s3.bucket');
+
+                $externalS3Client = new S3Client([
+                    'version' => 'latest',
+                    'region'  => config('filesystems.disks.s3.region', 'us-east-1'),
+                    'endpoint' => $externalUrl,
+                    'use_path_style_endpoint' => true,
+                    'credentials' => [
+                        'key'    => config('filesystems.disks.s3.key'),
+                        'secret' => config('filesystems.disks.s3.secret'),
+                    ],
+                ]);
+
                 $currentDetail = [
                     'id' => $pengumpulan->id,
                     'uuid' => $pengumpulan->uuid,
@@ -170,21 +186,62 @@ class PenilaianOnlineController extends Controller
                         'nama' => $pengumpulan->mahasiswa->user->nama_lengkap,
                         'email' => $pengumpulan->mahasiswa->user->email,
                     ],
-                    'jawaban' => $pengumpulan->jawabanDetails->map(fn($jd) => [
-                        'id' => $jd->id,
-                        'pertanyaan_id' => $jd->pertanyaan_id,
-                        'text_jawaban' => $jd->text_jawaban,
-                        'file_jawaban' => $jd->file_jawaban,
-                        'opsi_jawaban_id' => $jd->opsi_jawaban_id,
-                        'nilai_per_soal' => $jd->nilai_per_soal,
-                        'pertanyaan' => [
-                            'text' => $jd->pertanyaan->text_pertanyaan,
-                            'jenis' => $jd->pertanyaan->jenis_pertanyaan,
-                            'bobot' => (int) $jd->pertanyaan->bobot_soal,
-                            'opsi_opsi' => $jd->pertanyaan->opsiJawabans,
-                        ]
-                    ])->values(),
+                    'jawaban' => $pengumpulan->jawabanDetails->map(function ($jd) use ($externalS3Client, $bucket) {
+                        $fileUrl = null;
 
+                        // Jika mahasiswa mengupload file jawaban, generate secure presigned URL dari MinIO
+                        if ($jd->file_jawaban) {
+                            try {
+                                $fileName = basename($jd->file_jawaban);
+                                $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+
+                                $mimeTypes = [
+                                    'pdf'  => 'application/pdf',
+                                    'png'  => 'image/png',
+                                    'jpg'  => 'image/jpeg',
+                                    'jpeg' => 'image/jpeg',
+                                    'gif'  => 'image/gif',
+                                    'webp' => 'image/webp',
+                                    'mp4'  => 'video/mp4',
+                                    'webm' => 'video/webm',
+                                    'mp3'  => 'audio/mpeg',
+                                    'txt'  => 'text/plain',
+                                ];
+
+                                $contentType = $mimeTypes[$extension] ?? 'application/octet-stream';
+
+                                $command = $externalS3Client->getCommand('GetObject', [
+                                    'Bucket'                     => $bucket,
+                                    'Key'                        => $jd->file_jawaban,
+                                    'ResponseContentDisposition' => 'inline',
+                                    'ResponseContentType'        => $contentType,
+                                ]);
+
+                                $presignedRequest = $externalS3Client->createPresignedRequest($command, '+60 minutes');
+                                $fileUrl = (string) $presignedRequest->getUri();
+                            } catch (\Exception $e) {
+                                \Illuminate\Support\Facades\Log::error('Gagal generate URL presigned jawaban: ' . $e->getMessage());
+                                $fileUrl = null;
+                            }
+                        }
+
+                        return [
+                            'id' => $jd->id,
+                            'pertanyaan_id' => $jd->pertanyaan_id,
+                            'text_jawaban' => $jd->text_jawaban,
+                            'file_jawaban' => $jd->file_jawaban,
+                            'file_name' => $jd->file_jawaban ? basename($jd->file_jawaban) : null,
+                            'file_url' => $fileUrl, // <-- Properti Baru hasil generate URL MinIO
+                            'opsi_jawaban_id' => $jd->opsi_jawaban_id,
+                            'nilai_per_soal' => $jd->nilai_per_soal,
+                            'pertanyaan' => [
+                                'text' => $jd->pertanyaan->text_pertanyaan,
+                                'jenis' => $jd->pertanyaan->jenis_pertanyaan,
+                                'bobot' => (int) $jd->pertanyaan->bobot_soal,
+                                'opsi_opsi' => $jd->pertanyaan->opsiJawabans,
+                            ]
+                        ];
+                    })->values(),
                 ];
             }
 
@@ -336,8 +393,6 @@ class PenilaianOnlineController extends Controller
                 }
             }
 
-            // \Illuminate\Support\Facades\Cache::forget("kelas:global_detail:{$kelas->id}");
-
             DB::commit();
             return redirect()->route('dosen.kelas.show', $kelas->uuid)->with('success', 'Penilaian online berhasil dibuat.');
         } catch (\Throwable $e) {
@@ -416,9 +471,6 @@ class PenilaianOnlineController extends Controller
         $this->ensurePenilaianInKelas($kelas, $penilaian);
         $this->ensurePenilaianOnline($penilaian);
 
-        $allowedIds = $kelas->anggotaKelases()->pluck('mahasiswa_id')->toArray();
-
-        // ✅ VALIDASI
         $data = $request->validate([
             'judul' => ['sometimes', 'required', 'string', 'max:255'],
             'instruksi' => ['sometimes', 'nullable', 'string', 'max:1000'],
@@ -442,9 +494,7 @@ class PenilaianOnlineController extends Controller
             'remove_image_ids.*' => ['integer'],
         ]);
 
-        // 🔥 FIX UTAMA: $request DI-USE KE CLOSURE
         return DB::transaction(function () use ($request, $kelas, $penilaian, $data) {
-            // 1. Update penilaian utama
             $penilaianUpdate = array_filter([
                 'judul' => $data['judul'] ?? null,
                 'instruksi' => $data['instruksi'] ?? null,
@@ -456,7 +506,6 @@ class PenilaianOnlineController extends Controller
                 $penilaian->update($penilaianUpdate);
             }
 
-            // 2. Hapus gambar yang di-remove
             if (!empty($data['remove_image_ids'] ?? [])) {
                 PertanyaanImage::whereIn('id', $data['remove_image_ids'])
                     ->whereHas('pertanyaan', fn($q) => $q->where('penilaian_id', $penilaian->id))
@@ -468,7 +517,6 @@ class PenilaianOnlineController extends Controller
                     });
             }
 
-            // 3. Process pertanyaans
             if (!empty($data['pertanyaans'])) {
                 $existingPertanyaans = Pertanyaan::where('penilaian_id', $penilaian->id)->get();
 
@@ -477,7 +525,6 @@ class PenilaianOnlineController extends Controller
                     $pertanyaan = $existingPertanyaans->firstWhere('id', $pertanyaanId);
 
                     if ($pertanyaan) {
-                        // UPDATE existing
                         $pertanyaan->update([
                             'nomor_urut' => (int) $qData['nomor_urut'],
                             'text_pertanyaan' => $qData['text_pertanyaan'],
@@ -485,7 +532,6 @@ class PenilaianOnlineController extends Controller
                             'bobot_soal' => (int) ($qData['bobot_soal'] ?? 0),
                         ]);
                     } else {
-                        // CREATE new
                         $pertanyaan = Pertanyaan::create([
                             'penilaian_id' => $penilaian->id,
                             'nomor_urut' => (int) $qData['nomor_urut'],
@@ -495,7 +541,6 @@ class PenilaianOnlineController extends Controller
                         ]);
                     }
 
-                    // 🔥 SEKARANG $request TERSEDIA - Upload new images
                     $clientKey = $qData['client_key'] ?? $pertanyaan->id;
                     $files = $request->file("images.{$clientKey}", []);
 
@@ -510,7 +555,6 @@ class PenilaianOnlineController extends Controller
                         }
                     }
 
-                    // Update opsi jawaban (pilihan ganda)
                     if (isset($qData['opsi_jawabans']) && $qData['jenis_pertanyaan'] === 'pilihan_ganda') {
                         OpsiJawaban::where('pertanyaan_id', $pertanyaan->id)->delete();
 
@@ -525,8 +569,6 @@ class PenilaianOnlineController extends Controller
                 }
             }
 
-            // \Illuminate\Support\Facades\Cache::forget("kelas:global_detail:{$penilaian->kelas_id}");
-
             return redirect()->route('dosen.kelas.show', $kelas->uuid)
                 ->with('success', 'Penilaian online berhasil diperbarui.');
         });
@@ -538,55 +580,31 @@ class PenilaianOnlineController extends Controller
         $this->ensurePenilaianInKelas($kelas, $penilaian);
         $this->ensurePenilaianOnline($penilaian);
 
-        // 🔥 cek apakah sudah ada mahasiswa mengerjakan
-        $sudahAdaPengumpulan = Pengumpulan::where(
-            'penilaian_id',
-            $penilaian->id
-        )->exists();
+        $sudahAdaPengumpulan = Pengumpulan::where('penilaian_id', $penilaian->id)->exists();
 
-        // kalau sudah ada, jangan hapus
         if ($sudahAdaPengumpulan) {
             return redirect()
                 ->route('dosen.kelas.show', $kelas->uuid)
-                ->with(
-                    'error',
-                    'Penilaian tidak dapat dihapus karena sudah ada mahasiswa yang mengerjakan.'
-                );
+                ->with('error', 'Penilaian tidak dapat dihapus karena sudah ada mahasiswa yang mengerjakan.');
         }
 
         DB::beginTransaction();
-
         try {
-
-            // hapus folder file penilaian
             if (!empty($penilaian->uuid)) {
-                Storage::disk('public')
-                    ->deleteDirectory("penilaian/{$penilaian->uuid}");
+                Storage::disk('public')->deleteDirectory("penilaian/{$penilaian->uuid}");
             }
 
-            // aman, karena belum ada pengumpulan
             $penilaian->delete();
-
             DB::commit();
 
-            // \Illuminate\Support\Facades\Cache::forget("kelas:global_detail:{$penilaian->kelas_id}");
-
             return redirect()
                 ->route('dosen.kelas.show', $kelas->uuid)
-                ->with(
-                    'success',
-                    'Penilaian online berhasil dihapus.'
-                );
+                ->with('success', 'Penilaian online berhasil dihapus.');
         } catch (\Throwable $e) {
-
             DB::rollBack();
-
             return redirect()
                 ->route('dosen.kelas.show', $kelas->uuid)
-                ->with(
-                    'error',
-                    'Gagal menghapus penilaian.'
-                );
+                ->with('error', 'Gagal menghapus penilaian.');
         }
     }
 }

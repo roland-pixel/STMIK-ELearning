@@ -97,25 +97,68 @@ const isEmpty = computed(() => {
 });
 
 /** ================= Helpers ================= */
+/** ================= HELPER CONVERT UTC TO LOCAL (WIB/WITA/WIT) ================= */
+const parseToUtc = (isoLike) => {
+    if (!isoLike) return null;
+    let dateStr = String(isoLike).trim();
+
+    // Jika string dari Laravel polos (contoh: "2026-06-21 08:30:00")
+    if (!dateStr.includes("Z") && !dateStr.includes("+") && !dateStr.includes("T")) {
+        dateStr = dateStr.replace(" ", "T") + "+00:00";
+    } else if (!dateStr.includes("Z") && !dateStr.includes("+") && dateStr.includes("T")) {
+        dateStr = dateStr + "Z";
+    }
+    
+    const d = new Date(dateStr);
+    return Number.isNaN(d.getTime()) ? null : d;
+};
+
 const formatTimeShort = (isoLike) => {
-    if (!isoLike) return "—";
-    const d = new Date(isoLike);
-    if (Number.isNaN(d.getTime())) return String(isoLike);
-    const hh = String(d.getHours()).padStart(2, "0");
-    const mm = String(d.getMinutes()).padStart(2, "0");
-    return `${hh}.${mm}`;
+    const d = parseToUtc(isoLike);
+    if (!d) return String(isoLike ?? "—");
+
+    try {
+        return new Intl.DateTimeFormat("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+            timeZoneName: "short", // Otomatis cetak WIB / WITA / WIT
+        }).format(d);
+    } catch (e) {
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mm = String(d.getMinutes()).padStart(2, "0");
+        return `${hh}.${mm}`;
+    }
 };
 
 const formatTanggal = (isoLike) => {
-    if (!isoLike) return "—";
-    const d = new Date(isoLike);
-    if (Number.isNaN(d.getTime())) return String(isoLike);
-    const dd = String(d.getDate()).padStart(2, "0");
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const yy = d.getFullYear();
-    const hh = String(d.getHours()).padStart(2, "0");
-    const mi = String(d.getMinutes()).padStart(2, "0");
-    return `${dd}/${mm}/${yy} ${hh}.${mi}`;
+    const d = parseToUtc(isoLike);
+    if (!d) return String(isoLike ?? "—");
+
+    try {
+        const datePart = new Intl.DateTimeFormat("id-ID", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+        }).format(d);
+
+        const timePart = new Intl.DateTimeFormat("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+            timeZoneName: "short", // Otomatis cetak WIB / WITA / WIT
+        }).format(d);
+
+        return `${datePart} ${timePart}`;
+    } catch (e) {
+        // Fallback manual jika Intl bermasalah
+        const dd = String(d.getDate()).padStart(2, "0");
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const yy = d.getFullYear();
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mi = String(d.getMinutes()).padStart(2, "0");
+        return `${dd}/${mm}/${yy} ${hh}.${mi}`;
+    }
 };
 
 const kategoriBadge = (k) => {

@@ -175,11 +175,36 @@ const forumItems = computed(() => {
 
 const formatTimeShort = (isoLike) => {
     if (!isoLike) return "—";
-    const d = new Date(isoLike);
+    
+    let dateStr = String(isoLike).trim();
+
+    // JIKA string dari Laravel polos (contoh: "2026-06-21 08:30:00")
+    // Jelas browser bakal ngira itu waktu lokal. Kita paksa tempel "+00:00" (UTC) atau "Z"
+    if (!dateStr.includes("Z") && !dateStr.includes("+") && !dateStr.includes("T")) {
+        // Ubah spasi menjadi 'T' dan tambah '+00:00' biar valid standar ISO UTC
+        dateStr = dateStr.replace(" ", "T") + "+00:00";
+    } else if (!dateStr.includes("Z") && !dateStr.includes("+") && dateStr.includes("T")) {
+        // Kalau udah ada 'T' tapi gapunya penanda timezone di ekornya
+        dateStr = dateStr + "Z";
+    }
+
+    const d = new Date(dateStr);
     if (Number.isNaN(d.getTime())) return String(isoLike);
-    const hh = String(d.getHours()).padStart(2, "0");
-    const mm = String(d.getMinutes()).padStart(2, "0");
-    return `${hh}.${mm}`;
+
+    try {
+        // Eksekusi pakai Intl bawaan browser perangkat user
+        return new Intl.DateTimeFormat("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+            timeZoneName: "short", // Otomatis cetak WIB / WITA / WIT
+        }).format(d);
+    } catch (e) {
+        // Fallback kalau Intl crash
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mm = String(d.getMinutes()).padStart(2, "0");
+        return `${hh}.${mm}`;
+    }
 };
 
 /** ====== MENU ====== */

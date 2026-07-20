@@ -15,7 +15,6 @@ const page = usePage();
 
 /**
  * Ambil kelas dari shared props (middleware)
- * Pastikan share: $page.props.dosen_classes
  */
 const classes = computed(() => page.props.dosen_classes ?? []);
 
@@ -45,16 +44,15 @@ const navItemClass = (routeName) => {
  * Link kelas
  */
 const kelasHref = (c) => {
-    const key = c?.uuid ?? c?.id; // fallback kalau uuid kosong
+    const key = c?.uuid ?? c?.id;
     return key ? route("dosen.kelas.show", key) : "#";
 };
 
 /**
- * Active checker per kelas (biar item kelas ikut merah kalau sedang dibuka)
+ * Active checker per kelas
  */
 const currentKelasKey = computed(() => {
     try {
-        // ambil param "kelas" dari URL aktif (uuid)
         return route().params?.kelas ?? null;
     } catch {
         return null;
@@ -65,13 +63,12 @@ const isKelasActive = (c) => {
     const key = c?.uuid ?? c?.id;
     if (!key) return false;
 
-    // ✅ aktif kalau sedang di route dosen.kelas.* dan param kelas-nya sama
     const onKelasArea = isActive("dosen.kelas.*");
     return onKelasArea && String(currentKelasKey.value) === String(key);
 };
 
 /**
- * Class row per kelas (aktif per item)
+ * Class row per kelas
  */
 const kelasRowClass = (c) => {
     const active = isKelasActive(c);
@@ -86,7 +83,7 @@ const kelasRowClass = (c) => {
 };
 
 /**
- * (Opsional) Kalau sedang di halaman kelas, dropdown Mengajar auto terbuka
+ * Otomatis buka dropdown jika berada di area kelas
  */
 watchEffect(() => {
     if (isActive("dosen.kelas.*")) {
@@ -99,20 +96,16 @@ const mengajarActive = computed(() => isActive("dosen.kelas.*"));
 
 <template>
     <aside
-        class="w-72 bg-white border-r border-gray-200/60 z-40 fixed inset-y-0 left-0 transition-transform duration-300 shadow-sm"
+        class="w-72 bg-white border-r border-gray-200/60 z-40 fixed inset-y-0 left-0 transition-transform duration-300 shadow-sm
+               md:relative md:inset-auto md:h-full md:translate-x-0 md:shadow-none"
         :class="props.isOpen ? 'translate-x-0' : '-translate-x-full'"
-        style="top: 64px; height: calc(100vh - 64px)"
+        style="--mobile-top: 64px;"
     >
         <div class="h-full flex flex-col">
-            <!-- Header -->
-            <div
-                class="px-4 pt-4 pb-3 border-b border-gray-200/60 bg-white/70 backdrop-blur"
-            >
+            <div class="px-4 pt-4 pb-3 border-b border-gray-200/60 bg-white/70 backdrop-blur">
                 <div class="flex items-center justify-between">
                     <div class="min-w-0">
-                        <div
-                            class="text-sm font-semibold text-gray-800 truncate"
-                        >
+                        <div class="text-sm font-semibold text-gray-800 truncate">
                             Menu Dosen
                         </div>
                         <div class="text-xs text-gray-500 truncate">
@@ -136,7 +129,6 @@ const mengajarActive = computed(() => isActive("dosen.kelas.*"));
                 </div>
             </div>
 
-            <!-- Content -->
             <div class="flex-1 overflow-y-auto px-3 py-4">
                 <div class="space-y-2">
                     <Link
@@ -168,16 +160,11 @@ const mengajarActive = computed(() => isActive("dosen.kelas.*"));
                     </Link>
                 </div>
 
-                <!-- Mengajar -->
                 <div class="mt-6">
                     <button
                         type="button"
                         class="w-full flex items-center justify-between px-4 py-3 rounded-xl transition hover:bg-gray-100 text-gray-800 focus:outline-none focus:ring-2 focus:ring-rose-700/20"
-                        :class="
-                            mengajarActive
-                                ? 'bg-rose-50 border border-rose-100 text-rose-800'
-                                : ''
-                        "
+                        :class="mengajarActive ? 'bg-rose-50 border border-rose-100 text-rose-800' : ''"
                         @click="openMengajar = !openMengajar"
                     >
                         <span class="font-semibold flex items-center gap-2">
@@ -214,9 +201,7 @@ const mengajarActive = computed(() => isActive("dosen.kelas.*"));
                             :class="kelasRowClass(c)"
                             @click="closeSidebar"
                         >
-                            <div
-                                class="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-100 to-gray-100 flex items-center justify-center text-sm font-bold text-rose-800 shadow-sm"
-                            >
+                            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-100 to-gray-100 flex items-center justify-center text-sm font-bold text-rose-800 shadow-sm">
                                 {{ (c.nama?.[0] ?? "K").toUpperCase() }}
                             </div>
 
@@ -243,7 +228,6 @@ const mengajarActive = computed(() => isActive("dosen.kelas.*"));
                 </div>
             </div>
 
-            <!-- Footer -->
             <div class="px-3 py-4 border-t border-gray-200/60 bg-white">
                 <form method="POST" :action="route('logout')" class="w-full">
                     <input
@@ -269,3 +253,12 @@ const mengajarActive = computed(() => isActive("dosen.kelas.*"));
         </div>
     </aside>
 </template>
+
+<style scoped>
+@media (max-width: 767px) {
+    aside {
+        top: var(--mobile-top);
+        height: calc(100vh - var(--mobile-top));
+    }
+}
+</style>

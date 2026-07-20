@@ -210,49 +210,42 @@
 
 
                         {{-- modal delete --}}
-                        <dialog id="hapus-kelas-{{ $item->id }}" class="rounded-2xl p-0">
+                        <dialog id="hapus-kelas-{{ $item->id }}"
+                            class="fixed inset-0 z-50 m-auto backdrop:bg-black/40 rounded-2xl p-0 open:flex open:items-center open:justify-center border-0 bg-transparent shadow-none">
 
-                            <div class="p-5 w-[400px]">
+                            <div
+                                class="w-full max-w-md bg-white rounded-2xl border border-slate-200 p-5 shadow-xl transition-all">
 
-                                <h3 class="font-semibold text-lg">
+                                <h3 class="font-semibold text-lg text-slate-900">
                                     Hapus kelas?
                                 </h3>
 
                                 <p class="mt-2 text-sm text-slate-600">
-
-                                    {{ $item->nama_kelas }}
-
+                                    Kamu akan menghapus kelas: <span
+                                        class="font-medium text-slate-900">{{ $item->nama_kelas }}</span>
                                 </p>
-
 
                                 <div class="mt-5 flex justify-end gap-2">
 
                                     <button type="button"
                                         onclick="document.getElementById('hapus-kelas-{{ $item->id }}').close()"
-                                        class="border rounded-xl px-4 py-2">
-
+                                        class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition">
                                         Batal
-
                                     </button>
 
-
                                     <form method="POST" action="{{ route('admin.kelases.destroy', $item) }}">
-
                                         @csrf
                                         @method('DELETE')
 
-                                        <button type="submit" class="bg-maroon-700 text-white rounded-xl px-4 py-2">
-
+                                        <button type="submit"
+                                            class="rounded-xl bg-maroon-700 px-4 py-2 text-sm font-semibold text-white hover:bg-maroon-800 transition shadow-sm">
                                             Hapus
-
                                         </button>
-
                                     </form>
 
                                 </div>
 
                             </div>
-
                         </dialog>
 
                     @empty

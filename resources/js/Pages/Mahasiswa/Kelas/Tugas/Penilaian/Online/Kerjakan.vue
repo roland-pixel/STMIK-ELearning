@@ -1,6 +1,8 @@
 <script setup>
 import { Head, useForm } from '@inertiajs/vue3';
+// PERBAIKAN: Mengembalikan import ke 'vue', bukan 'react'
 import { ref, onMounted, watch, computed } from 'vue';
+import axios from 'axios';
 
 const props = defineProps({
     kelas: Object,
@@ -10,13 +12,31 @@ const props = defineProps({
 
 const storageKey = `stmik_elearning_penilaian_${props.penilaian.id}_pengumpulan_${props.pengumpulan.id}`;
 
-const form = useForm({
+// State local untuk mengontrol status loading saat bypass chunk upload
+const customProcessing = ref(false);
+
+const baseForm = useForm({
     jawaban: props.penilaian.pertanyaans.map(p => ({
         pertanyaan_id: p.id,
         opsi_jawaban_id: null,
         text_jawaban: '',
-        file: null
+        file: null,
+        file_path: null // Menyimpan string path sukses dari MinIO
     }))
+});
+
+// Proxy wrapper agar template mendeteksi loading upload tanpa mengubah kode HTML
+const form = new Proxy(baseForm, {
+    get(target, prop) {
+        if (prop === 'processing') {
+            return target.processing || customProcessing.value;
+        }
+        const value = Reflect.get(target, prop);
+        return typeof value === 'function' ? value.bind(target) : value;
+    },
+    set(target, prop, value) {
+        return Reflect.set(target, prop, value);
+    }
 });
 
 const activeIndex = ref(0);
@@ -68,16 +88,102 @@ const goToSoal = (index) => { activeIndex.value = index; };
 const goPrev = () => { if (activeIndex.value > 0) activeIndex.value--; };
 const goNext = () => { if (activeIndex.value < totalSoal - 1) activeIndex.value++; };
 
-const submitJawaban = () => {
+// Fungsi pemotong file & pengunggah potongan langsung ke MinIO via Presigned URL
+const uploadFileInChunks = async (file) => {
+    const CHUNK_SIZE = 10 * 1024 * 1024; // Potong per 10MB
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+
+    try {
+        // 1. Inisialisasi Multipart Upload ke Laravel Mahasiswa Endpoint
+        const initiateRes = await axios.post(route('mahasiswa.kelas.penilaian.online.initiate', [props.kelas.uuid, props.penilaian.uuid]), {
+            filename: file.name,
+            total_chunks: totalChunks
+        });
+
+        const { upload_id, key, urls } = initiateRes.data;
+        const parts = [];
+
+        // 2. Upload tiap chunk langsung ke MinIO (Bypass Laravel)
+        for (let i = 1; i <= totalChunks; i++) {
+            const start = (i - 1) * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, file.size);
+            const chunkBlob = file.slice(start, end);
+
+            const uploadPartRes = await axios.put(urls[i], chunkBlob, {
+                headers: { "Content-Type": "application/octet-stream" }
+            });
+
+            const etag = uploadPartRes.headers['etag'];
+            parts.push({
+                PartNumber: i,
+                ETag: etag
+            });
+        }
+
+        // 3. Gabungkan bagian-bagian chunk di MinIO via Laravel
+        const completeRes = await axios.post(route('mahasiswa.kelas.penilaian.online.complete', [props.kelas.uuid, props.penilaian.uuid]), {
+            upload_id: upload_id,
+            key: key,
+            parts: parts
+        });
+
+        if (completeRes.data && completeRes.data.status === true) {
+            return completeRes.data.file_path;
+        }
+    } catch (error) {
+        console.error("Gagal memproses fragmen file ke server storage MinIO:", error);
+        throw error;
+    }
+    return null;
+};
+
+// Proses submit utama diubah menjadi Async untuk mengunggah file terlebih dahulu
+const submitJawaban = async () => {
     showConfirm.value = false;
-    form.post(route('mahasiswa.kelas.penilaian.online.submit', [props.kelas.uuid, props.penilaian.uuid]), {
-        forceFormData: true,
-        onSuccess: () => { localStorage.removeItem(storageKey); }
-    });
+    customProcessing.value = true; // Nyalakan loading spinner di UI template
+
+    try {
+        // Loop seluruh baris jawaban untuk mencari file yang belum diupload
+        for (let i = 0; i < form.jawaban.length; i++) {
+            const item = form.jawaban[i];
+            if (item.file && !item.file_path) {
+                const uploadedPath = await uploadFileInChunks(item.file);
+                if (uploadedPath) {
+                    item.file_path = uploadedPath;
+                } else {
+                    alert(`Gagal mengunggah file pada soal nomor ${i + 1}. Silakan coba kembali.`);
+                    customProcessing.value = false;
+                    return;
+                }
+            }
+        }
+
+        // Kirim muatan data akhir ke backend laravel (Menyesuaikan dengan validasi string file_path)
+        form.transform((data) => ({
+            jawaban: data.jawaban.map(j => ({
+                pertanyaan_id: j.pertanyaan_id,
+                opsi_jawaban_id: j.opsi_jawaban_id,
+                text_jawaban: j.text_jawaban,
+                file_path: j.file_path || null // Mengirim path string, bukan objek File mentah
+            }))
+        })).post(route('mahasiswa.kelas.penilaian.online.submit', [props.kelas.uuid, props.penilaian.uuid]), {
+            onSuccess: () => { 
+                localStorage.removeItem(storageKey); 
+            },
+            onFinish: () => {
+                customProcessing.value = false; // Matikan loading spinner
+            }
+        });
+
+    } catch (error) {
+        alert('Terjadi kendala saat memproses upload file jawaban lampiran.');
+        customProcessing.value = false;
+    }
 };
 
 const handleFileChange = (index, event) => {
     form.jawaban[index].file = event.target.files[0];
+    form.jawaban[index].file_path = null; // Reset path jika mahasiswa mengganti file baru
 };
 
 const jenisBadge = (jenis) => ({
@@ -93,7 +199,6 @@ const jenisBadge = (jenis) => ({
 
     <div class="exam-root">
 
-        <!-- ===== HEADER ===== -->
         <header class="exam-header">
             <div class="header-inner">
                 <div class="header-left">
@@ -135,10 +240,8 @@ const jenisBadge = (jenis) => ({
             </div>
         </header>
 
-        <!-- ===== LAYOUT ===== -->
         <div class="exam-layout">
 
-            <!-- SIDEBAR -->
             <aside class="exam-sidebar">
                 <div class="sidebar-section">
                     <div class="sidebar-heading">Navigasi Soal</div>
@@ -188,12 +291,10 @@ const jenisBadge = (jenis) => ({
                 </div>
             </aside>
 
-            <!-- MAIN CONTENT -->
             <main class="exam-main">
 
                 <div v-for="(soal, index) in penilaian.pertanyaans" :key="soal.id" v-show="activeIndex === index"
                     class="soal-card">
-                    <!-- Soal header -->
                     <div class="soal-header">
                         <div class="soal-num" :class="isSoalAnswered(index) ? 'num-done' : 'num-default'">
                             <template v-if="isSoalAnswered(index)">
@@ -212,15 +313,12 @@ const jenisBadge = (jenis) => ({
                         </div>
                     </div>
 
-                    <!-- Teks pertanyaan -->
                     <div class="soal-text">{{ soal.text_pertanyaan }}</div>
 
-                    <!-- Gambar -->
                     <div v-if="soal.images?.length" class="soal-images">
                         <img v-for="img in soal.images" :src="img.url" :key="img.url" class="soal-img" />
                     </div>
 
-                    <!-- ---- PILIHAN GANDA ---- -->
                     <div v-if="soal.jenis_pertanyaan === 'pilihan_ganda'" class="opsi-list">
                         <label v-for="(opsi, oi) in soal.opsi_jawabans" :key="opsi.id" class="opsi-item"
                             :class="form.jawaban[index].opsi_jawaban_id === opsi.id ? 'opsi-selected' : ''">
@@ -235,7 +333,6 @@ const jenisBadge = (jenis) => ({
                         </label>
                     </div>
 
-                    <!-- ---- ESAI ---- -->
                     <div v-else-if="soal.jenis_pertanyaan === 'essai'" class="essai-wrap">
                         <textarea v-model="form.jawaban[index].text_jawaban" rows="7"
                             placeholder="Tuliskan jawaban Anda dengan jelas dan lengkap…" class="essai-area"></textarea>
@@ -245,7 +342,6 @@ const jenisBadge = (jenis) => ({
                         </div>
                     </div>
 
-                    <!-- ---- UPLOAD FILE ---- -->
                     <div v-else-if="soal.jenis_pertanyaan === 'upload_file'" class="upload-wrap">
                         <label class="upload-zone" :class="form.jawaban[index].file ? 'upload-done' : ''">
                             <input type="file" class="sr-only" @change="handleFileChange(index, $event)" />
@@ -276,7 +372,6 @@ const jenisBadge = (jenis) => ({
                         </label>
                     </div>
 
-                    <!-- NAV BAWAH -->
                     <div class="soal-nav">
                         <button class="nav-btn nav-prev" @click="goPrev" :disabled="activeIndex === 0">
                             <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
@@ -310,7 +405,6 @@ const jenisBadge = (jenis) => ({
             </main>
         </div>
 
-        <!-- ===== MODAL KONFIRMASI ===== -->
         <Teleport to="body">
             <div v-if="showConfirm" class="modal-backdrop" @click.self="showConfirm = false">
                 <div class="modal-box">

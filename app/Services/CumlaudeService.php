@@ -7,9 +7,12 @@ use Illuminate\Support\Facades\DB;
 
 class CumlaudeService
 {
-    // C+ dan C- sudah masuk "di bawah B-", jadi tidak valid
+    // C+ dan C- sudah masuk "di bawah B-", jadi tidak valid untuk Cumlaude
     private const NILAI_VALID = ['A', 'A-', 'B+', 'B', 'B-'];
 
+    /**
+     * Mengambil daftar mahasiswa yang memenuhi semua syarat ketat Cumlaude
+     */
     public function getDaftarCumlaude(array $filters = []): Collection
     {
         $query = DB::table('mahasiswas as m')
@@ -18,13 +21,14 @@ class CumlaudeService
             ->where('m.status', 'lulus')
             ->whereIn('m.jenis_program', ['reguler', 'malam']);
 
-        // --- FITUR FILTER BARU ---
+        // --- FITUR FILTER ---
         if (!empty($filters['jurusan_id'])) {
             $query->where('m.jurusan_id', $filters['jurusan_id']);
         }
 
-        if (!empty($filters['angkatan'])) {
-            $query->where('m.angkatan', $filters['angkatan']);
+        // PERBAIKAN: Menggunakan filter tahun lulus agar relevan dengan periode kelulusan
+        if (!empty($filters['tahun_lulus'])) {
+            $query->whereYear('m.tanggal_lulus', $filters['tahun_lulus']);
         }
         // -------------------------
 
@@ -33,13 +37,14 @@ class CumlaudeService
             'm.uuid',
             'm.nim',
             'm.angkatan',
+            'm.tanggal_lulus',
             'u.nama_lengkap',
             'j.nama_jurusan',
-            'j.jenjang', // ✅ Sudah benar mengambil data jenjang
+            'j.jenjang',
         ])->get();
 
         return $kandidat
-            ->filter(fn($mhs) => $this->cekLulusTepat($mhs)) // ✅ PERBAIKAN: Kirim seluruh objek $mhs
+            ->filter(fn($mhs) => $this->cekLulusTepat($mhs))
             ->filter(fn($mhs) => $this->cekTidakRekos($mhs->mahasiswa_id))
             ->filter(fn($mhs) => $this->cekNilaiMinimal($mhs->mahasiswa_id))
             ->map(fn($mhs)    => $this->enrichData($mhs))
@@ -52,18 +57,59 @@ class CumlaudeService
             ->values();
     }
 
+    /**
+     * Logika Baru: Mengambil ranking mahasiswa berdasarkan IPK tertinggi
+     * Tanpa batasan mengulang, batas semester, atau minimal huruf C
+     */
+    public function getDaftarMahasiswaTerbaik(array $filters = []): Collection
+    {
+        $query = DB::table('mahasiswas as m')
+            ->join('users as u', 'u.id', '=', 'm.user_id')
+            ->join('jurusans as j', 'j.id', '=', 'm.jurusan_id')
+            ->where('m.status', 'lulus'); // Tetap harus yang sudah berstatus lulus
+
+        // --- FITUR FILTER ---
+        if (!empty($filters['jurusan_id'])) {
+            $query->where('m.jurusan_id', $filters['jurusan_id']);
+        }
+
+        if (!empty($filters['tahun_lulus'])) {
+            $query->whereYear('m.tanggal_lulus', $filters['tahun_lulus']);
+        }
+        // -------------------------
+
+        $kandidat = $query->select([
+            'm.id as mahasiswa_id',
+            'm.uuid',
+            'm.nim',
+            'm.angkatan',
+            'm.tanggal_lulus',
+            'u.nama_lengkap',
+            'j.nama_jurusan',
+            'j.jenjang',
+        ])->get();
+
+        return $kandidat
+            ->map(fn($mhs) => $this->enrichData($mhs)) // Hitung IPK, Nilai Skripsi & Total Nilai A
+            ->sortByDesc(fn($mhs) => [
+                $mhs->ipk,                 // Prioritas 1: IPK mutlak paling tinggi
+                $mhs->nilai_skripsi ?? 0,  // Prioritas 2: Pemecah rekor jika IPK kembar
+                $mhs->total_nilai_a ?? 0,  // Prioritas 3: Pemecah rekor jika nilai skripsi juga kembar
+            ])
+            ->values();
+    }
+
     // ---------------------------------------------------------------
-    // Syarat 2: Lulus tepat waktu (S1 ≤ 8 semester, D3 ≤ 6 semester)
+    // Syarat Cumlaude: Lulus tepat waktu (S1 ≤ 8 semester, D3 ≤ 6 semester)
     // ---------------------------------------------------------------
-    private function cekLulusTepat(object $mhs): bool // ✅ PERBAIKAN: Ubah tipe parameter jadi object
+    private function cekLulusTepat(object $mhs): bool
     {
         $jenjang = strtoupper(trim($mhs->jenjang));
-
         $maksSemester = ($jenjang === 'D3') ? 6 : 8;
 
         $jumlahSemester = DB::table('anggota_kelases as ak')
             ->join('kelases as k', 'k.id', '=', 'ak.kelas_id')
-            ->where('ak.mahasiswa_id', $mhs->mahasiswa_id) // ✅ Gunakan $mhs->mahasiswa_id
+            ->where('ak.mahasiswa_id', $mhs->mahasiswa_id)
             ->distinct()
             ->count('k.semester_id');
 
@@ -71,7 +117,7 @@ class CumlaudeService
     }
 
     // ---------------------------------------------------------------
-    // Syarat 1: Tidak rekos
+    // Syarat Cumlaude: Tidak pernah mengulang kelas (rekos)
     // ---------------------------------------------------------------
     private function cekTidakRekos(int $mahasiswaId): bool
     {
@@ -85,7 +131,7 @@ class CumlaudeService
     }
 
     // ---------------------------------------------------------------
-    // Syarat 4: Tidak ada nilai di bawah B-
+    // Syarat Cumlaude: Tidak ada nilai di bawah B-
     // ---------------------------------------------------------------
     private function cekNilaiMinimal(int $mahasiswaId): bool
     {
@@ -180,7 +226,7 @@ class CumlaudeService
     }
 
     // ---------------------------------------------------------------
-    // Helper
+    // Helper Konversi Nilai
     // ---------------------------------------------------------------
     private function konversiHuruf($n): string
     {

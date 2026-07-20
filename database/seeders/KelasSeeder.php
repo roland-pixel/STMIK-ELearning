@@ -29,23 +29,26 @@ class KelasSeeder extends Seeder
             'Ganjil 2025/2026',
         ])->get()->keyBy('nama_semester');
 
-        // Ambil Dosen Pengajar (Siti Dosen)
-        $dosenSiti = Dosen::whereHas('user', function ($query) {
-            $query->where('email', 'dosen2@example.com');
-        })->first();
+        // Ambil Semua Data Dosen untuk diacak pengampunya
+        $allDosen = Dosen::all();
 
         // Antisipasi jika data master belum siap
-        if ($semesters->isEmpty() || !$dosenSiti) {
+        if ($semesters->isEmpty() || $allDosen->isEmpty()) {
             return;
         }
 
-        // 2. Ambil Semua Mahasiswa Berdasarkan Jurusan
+        // 2. Ambil Semua Mahasiswa Berdasarkan Jurusan (Khusus Reguler Pagi)
+        // Memastikan hanya mengambil mahasiswa reguler/pagi agar kelas malam tidak tercampur
         $mhsSI = Mahasiswa::whereHas('jurusan', function ($q) {
             $q->where('kode_jurusan', 'SI');
+        })->where(function ($query) {
+            $query->where('jenis_program', 'reguler')->orWhere('jenis_program', 'Reguler');
         })->get();
 
         $mhsTI = Mahasiswa::whereHas('jurusan', function ($q) {
             $q->where('kode_jurusan', 'TI');
+        })->where(function ($query) {
+            $query->where('jenis_program', 'reguler')->orWhere('jenis_program', 'Reguler');
         })->get();
 
         // 3. Ambil Semua Master Mata Kuliah untuk Mapping ID
@@ -225,6 +228,12 @@ class KelasSeeder extends Seeder
             [
                 'semester'  => 'Ganjil 2023/2024',
                 'nama_mk'   => 'PEMROGRAMAN BERORIENTASI OBYEK',
+                'abjad'     => 'A',
+                'penerima'  => 'SI'
+            ],
+            [
+                'semester'  => 'Ganjil 2023/2024',
+                'nama_mk'   => 'PENGANTAR TEKNOLOGI INFORMASI',
                 'abjad'     => 'A',
                 'penerima'  => 'SI'
             ],
@@ -607,10 +616,18 @@ class KelasSeeder extends Seeder
             $mk = $allMatkuls->get($item['nama_mk']);
             $currentSemester = $semesters->get($item['semester']);
 
+            if ($item['nama_mk'] === 'PENGANTAR TEKNOLOGI INFORMASI') {
+                // Kunci dosen PTI agar selalu Ibu Siti Cholifah (Dosen pertama di foto)
+                $dosenAcak = $allDosen->where('nama_lengkap', 'Siti Cholifah, S.Kom, M.Kom')->first() ?? $allDosen->random();
+            } else {
+                // Mata kuliah lain tetap random adil dari database
+                $dosenAcak = $allDosen->random();
+            }
+
             // Buat Kelas Riil Baru
             $kelas = Kelas::create([
                 'uuid' => Str::uuid(),
-                'dosen_id' => $dosenSiti->id,
+                'dosen_id' => $dosenAcak->id, // Menggunakan ID dosen hasil acak
                 'mata_kuliah_id' => $mk->id,
                 'semester_id' => $currentSemester->id,
                 'nama_kelas' => $mk->nama_mk . ' - ' . $item['abjad'],
@@ -622,22 +639,29 @@ class KelasSeeder extends Seeder
             ]);
 
             // Filter Target Jurusan Mahasiswa
-            $targetMahasiswa = collect();
+            $targetMahasiswaPagi = collect();
             if ($item['penerima'] === 'SI') {
-                $targetMahasiswa = $mhsSI;
+                $targetMahasiswaPagi = $mhsSI;
             } elseif ($item['penerima'] === 'TI') {
-                $targetMahasiswa = $mhsTI;
+                $targetMahasiswaPagi = $mhsTI;
             } else {
-                $targetMahasiswa = $mhsSI->merge($mhsTI);
+                $targetMahasiswaPagi = $mhsSI->merge($mhsTI);
             }
-
-            // Filter Program Pagi (Mencegah mahasiswa malam ikut masuk)
-            $targetMahasiswaPagi = $targetMahasiswa->filter(function ($mhs) {
-                return !Str::contains(Str::lower($mhs->jenis_program), 'malam');
-            });
 
             // Masukkan Mahasiswa Pagi yang terfilter ke Anggota Kelas
             foreach ($targetMahasiswaPagi as $mhs) {
+                if ($item['semester'] === 'Ganjil 2023/2024' && $item['nama_mk'] === 'PENGANTAR TEKNOLOGI INFORMASI') {
+                    // Hanya masukkan Kharis Raihan ke kelas mengulang ini
+                    if ($mhs->user && $mhs->user->nama_lengkap === 'Kharis Raihan') {
+                        AnggotaKelas::create([
+                            'kelas_id'       => $kelas->id,
+                            'mahasiswa_id'   => $mhs->id,
+                            'tanggal_gabung' => now(),
+                        ]);
+                    }
+                    continue; // Skip mahasiswa reguler lainnya agar tidak masuk ke kelas mengulang PTI ini
+                }
+
                 AnggotaKelas::create([
                     'kelas_id' => $kelas->id,
                     'mahasiswa_id' => $mhs->id,

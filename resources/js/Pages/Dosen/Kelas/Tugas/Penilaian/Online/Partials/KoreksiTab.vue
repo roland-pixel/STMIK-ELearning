@@ -23,16 +23,33 @@ const totalLokal = computed(() => {
     );
 });
 
-// File helpers
+// =========================================================================
+// PERUBAHAN LOGIKA: Penyesuaian Helper File dengan Presigned URL MinIO
+// =========================================================================
 const fileUrl = (path) => {
     if (!path) return '';
-    if (path.startsWith('http')) return path;
-    return `/storage/${path}`;
+    
+    // Cari item jawaban di dalam properti untuk mencocokkan string path dengan presigned URL
+    const itemJawaban = props.currentDetail?.jawaban?.find(j => j.file_jawaban === path);
+    
+    // Gunakan presigned URL dari MinIO jika tersedia, jika tidak pakai fallback lokal
+    const targetUrl = itemJawaban?.file_url || (path.startsWith('http') ? path : `/storage/${path}`);
+    
+    // Deteksi ekstensi dokumen Microsoft Office (Word, Excel, PowerPoint)
+    const isOfficeDoc = /\.(docx?|xlsx?|pptx?)$/i.test(path);
+    
+    // Jika formatnya Office dan kita punya presigned URL valid, bypass lewat Microsoft Online Viewer
+    if (isOfficeDoc && itemJawaban?.file_url) {
+        return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(targetUrl)}`;
+    }
+    
+    return targetUrl;
 };
 
 const isImage = (path) => /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(path ?? '');
 const isPdf = (path) => /\.pdf$/i.test(path ?? '');
 const fileName = (path) => (path ?? '').split('/').pop();
+// =========================================================================
 
 // Score validation
 const limitScore = (event, item) => {
@@ -125,7 +142,6 @@ const saveSkor = async () => {
 
 <template>
     <div class="bg-slate-100 min-h-screen -m-6 p-6 font-sans">
-        <!-- Loading Overlay -->
         <div v-if="isSaving" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div class="bg-white p-6 rounded-xl shadow-xl max-w-sm mx-4">
                 <div class="flex items-center gap-3">
@@ -135,7 +151,6 @@ const saveSkor = async () => {
             </div>
         </div>
 
-        <!-- Toolbar -->
         <div class="max-w-2xl mx-auto bg-white rounded-xl shadow mb-4">
             <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
                 <select v-model="selectedMahasiswaId" @change="selectMahasiswa"
@@ -155,7 +170,6 @@ const saveSkor = async () => {
                 </button>
             </div>
 
-            <!-- Total Score Display -->
             <div v-if="currentDetail && currentDetail.jawaban?.length"
                 class="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-b-xl">
                 <div class="flex items-center gap-3">
@@ -176,13 +190,12 @@ const saveSkor = async () => {
                     <span v-else>✅ Terupdate</span>
                 </button>
             </div>
-            <div v-else class="text-center text-gray-500 py-12 px-6">
+            <div class="text-center text-gray-500 py-12 px-6" v-else>
                 {{ currentDetail ? 'Belum ada jawaban' : 'Pilih mahasiswa dulu' }}
             </div>
         </div>
 
         <div class="max-w-2xl mx-auto">
-            <!-- Penilaian Header -->
             <div class="bg-white rounded-xl shadow mb-4 overflow-hidden">
                 <div class="h-2 bg-purple-600"></div>
                 <div class="px-6 py-5">
@@ -193,13 +206,11 @@ const saveSkor = async () => {
                 </div>
             </div>
 
-            <!-- Jawaban Items -->
             <div v-if="currentDetail" class="space-y-4">
                 <div v-for="(item, index) in currentDetail.jawaban" :key="item.id"
                     class="bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all"
                     :class="getStatusBorder(item.nilai_per_soal, item.pertanyaan.bobot)">
                     <div class="px-6 pt-5 pb-4">
-                        <!-- Soal Header & Score Input -->
                         <div class="flex justify-between items-start mb-4 gap-4">
                             <div class="flex-1 min-w-0">
                                 <p class="text-sm font-semibold text-gray-800 mb-1">
@@ -222,7 +233,6 @@ const saveSkor = async () => {
                             </div>
                         </div>
 
-                        <!-- Multiple Choice -->
                         <div v-if="item.pertanyaan.jenis === 'pilihan_ganda'" class="space-y-2 mb-4">
                             <div v-for="opsi in item.pertanyaan.opsi_opsi" :key="opsi.id"
                                 class="flex items-start gap-3 p-3 rounded-xl border transition-all" :class="[
@@ -248,9 +258,7 @@ const saveSkor = async () => {
                             </div>
                         </div>
 
-                        <!-- Essay/File Answer -->
-                        <div v-else class="mb-4 space-y-3">
-                            <!-- Text Answer -->
+                        <div class="mb-4 space-y-3" v-else>
                             <div v-if="item.text_jawaban"
                                 class="p-4 bg-slate-50 rounded-xl border-2 border-dashed border-gray-200">
                                 <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Jawaban Teks
@@ -258,15 +266,12 @@ const saveSkor = async () => {
                                 <p class="text-sm text-gray-800 leading-relaxed italic">"{{ item.text_jawaban }}"</p>
                             </div>
 
-                            <!-- No Answer -->
                             <div v-if="!item.text_jawaban && !item.file_jawaban"
                                 class="p-4 bg-slate-50 rounded-xl border-2 border-dashed border-gray-200">
                                 <p class="text-sm text-gray-400 italic">Mahasiswa tidak mengisi jawaban</p>
                             </div>
 
-                            <!-- File Answer -->
                             <div v-if="item.file_jawaban">
-                                <!-- Image -->
                                 <div v-if="isImage(item.file_jawaban)">
                                     <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Foto
                                         yang dikumpulkan</p>
@@ -286,7 +291,6 @@ const saveSkor = async () => {
                                     </div>
                                 </div>
 
-                                <!-- PDF -->
                                 <div v-else-if="isPdf(item.file_jawaban)">
                                     <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">File PDF
                                         yang dikumpulkan</p>
@@ -312,7 +316,6 @@ const saveSkor = async () => {
                                     </div>
                                 </div>
 
-                                <!-- Other Files -->
                                 <div v-else>
                                     <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">File
                                         yang dikumpulkan</p>
@@ -343,7 +346,6 @@ const saveSkor = async () => {
                             </div>
                         </div>
 
-                        <!-- Card Footer -->
                         <div class="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center text-xs">
                             <button
                                 class="text-gray-400 hover:text-purple-600 transition flex items-center gap-1 p-1 rounded hover:bg-gray-100">
@@ -361,7 +363,6 @@ const saveSkor = async () => {
                 </div>
             </div>
 
-            <!-- Sticky Save Button -->
             <div class="sticky bottom-6 mt-6">
                 <div class="flex justify-end">
                     <button @click="saveSkor" :disabled="!isDirty || isSaving" :class="[
@@ -381,7 +382,7 @@ const saveSkor = async () => {
                         <span v-else-if="isDirty">
                             💾 Simpan {{ currentDetail.jawaban.length }} Perubahan
                         </span>
-                        <span v-else class="flex items-center gap-2">
+                        <span class="flex items-center gap-2" v-else>
                             ✅ Semua Skor Tersimpan
                             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd"

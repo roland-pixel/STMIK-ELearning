@@ -236,6 +236,24 @@
                     <span class="{{ navLabelClass(['admin.cumlaude.*']) }}">Kelola Cumlaude</span>
                 </a>
 
+                {{-- Mahasiswa Terbaik --}}
+                <a href="{{ route('admin.mahasiswa-terbaik.index') }}"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-2xl transition {{ navItemClass(['admin.mahasiswa-terbaik.*']) }}">
+                    <span
+                        class="w-9 h-9 rounded-xl border flex items-center justify-center {{ navIconWrapClass(['admin.mahasiswa-terbaik.*']) }}">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none">
+                            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18" stroke="currentColor"
+                                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                            <path d="M4 22h16M10 14.66V17c0 .55-.45 1-1 1H4v2h16v-2h-5c-.55 0-1-.45-1-1v-2.34"
+                                stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                                stroke-linejoin="round" />
+                            <path d="M12 2a4 4 0 0 1 4 4v5a4 4 0 0 1-4 4 4 4 0 0 1-4-4V6a4 4 0 0 1 4-4Z"
+                                stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+                        </svg>
+                    </span>
+                    <span class="{{ navLabelClass(['admin.mahasiswa-terbaik.*']) }}">Kelola Mahasiswa Terbaik</span>
+                </a>
+
             </div>
         </div>
 

@@ -4,6 +4,8 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#b91c1c">
     <title>@yield('title', 'Dashboard - Maroon Sneat Style')</title>
 
     {{-- Kalau kamu pakai Tailwind via Vite, aktifkan ini: --}}
@@ -90,6 +92,17 @@
             <!-- Content -->
             <main class="px-4 sm:px-6 py-6 min-w-0 overflow-x-hidden">
                 @yield('content')
+                <script>
+                    if ('serviceWorker' in navigator) {
+                        window.addEventListener('load', function() {
+                            navigator.serviceWorker.register('/sw.js').then(function(registration) {
+                                console.log('PWA Admin: ServiceWorker sukses terdaftar!');
+                            }, function(err) {
+                                console.log('PWA Admin: ServiceWorker gagal: ', err);
+                            });
+                        });
+                    }
+                </script>
             </main>
 
         </div>

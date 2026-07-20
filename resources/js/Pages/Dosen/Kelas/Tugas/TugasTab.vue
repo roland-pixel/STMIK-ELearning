@@ -194,57 +194,76 @@ const pickCreate = (type) => {
 };
 
 // ================= HELPERS =================
+// ================= HELPERS (Waktu Auto-Sensing UTC) =================
 const formatTimeShort = (isoLike) => {
-
     if (!isoLike) return "—";
+    
+    let dateStr = String(isoLike).trim();
 
-    const d = new Date(isoLike);
-
-    if (Number.isNaN(d.getTime())) {
-        return String(isoLike);
+    // Jika Laravel melempar string polos tanpa flag timezone, paksa tempel UTC "Z"
+    if (!dateStr.includes("Z") && !dateStr.includes("+") && !dateStr.includes("T")) {
+        dateStr = dateStr.replace(" ", "T") + "Z";
+    } else if (!dateStr.includes("Z") && !dateStr.includes("+") && dateStr.includes("T")) {
+        dateStr = dateStr + "Z";
     }
 
-    const hh =
-        String(d.getHours())
-            .padStart(2, "0");
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return String(isoLike);
 
-    const mm =
-        String(d.getMinutes())
-            .padStart(2, "0");
-
-    return `${hh}.${mm}`;
+    try {
+        // Otomatis ubah UTC ke Jam Perangkat Lokal & beri imbuhan (WIB/WITA/WIT)
+        return new Intl.DateTimeFormat("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+            timeZoneName: "short", 
+        }).format(d);
+    } catch (e) {
+        // Fallback jika Intl tidak didukung browser jadul
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mm = String(d.getMinutes()).padStart(2, "0");
+        return `${hh}.${mm}`;
+    }
 };
 
 const formatTanggal = (isoLike) => {
-
     if (!isoLike) return "—";
+    
+    let dateStr = String(isoLike).trim();
 
-    const d = new Date(isoLike);
-
-    if (Number.isNaN(d.getTime())) {
-        return String(isoLike);
+    // Standarisasi string menjadi format ISO UTC yang valid
+    if (!dateStr.includes("Z") && !dateStr.includes("+") && !dateStr.includes("T")) {
+        dateStr = dateStr.replace(" ", "T") + "Z";
+    } else if (!dateStr.includes("Z") && !dateStr.includes("+") && dateStr.includes("T")) {
+        dateStr = dateStr + "Z";
     }
 
-    const dd =
-        String(d.getDate())
-            .padStart(2, "0");
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return String(isoLike);
 
-    const mm =
-        String(d.getMonth() + 1)
-            .padStart(2, "0");
-
-    const yy =
-        d.getFullYear();
-
-    const hh =
-        String(d.getHours())
-            .padStart(2, "0");
-
-    const mi =
-        String(d.getMinutes())
-            .padStart(2, "0");
-
-    return `${dd}/${mm}/${yy} ${hh}.${mi}`;
+    try {
+        // Menampilkan format lengkap: DD/MM/YYYY, HH.mm WIB/WITA/WIT
+        const formatter = new Intl.DateTimeFormat("id-ID", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+            timeZoneName: "short"
+        });
+        
+        // Ganti tanda koma pemisah bawaan Intl ID dengan spasi biasa biar rapi
+        return formatter.format(d).replace(",", "");
+    } catch (e) {
+        // Fallback manual jika terjadi crash
+        const dd = String(d.getDate()).padStart(2, "0");
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const yy = d.getFullYear();
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mi = String(d.getMinutes()).padStart(2, "0");
+        return `${dd}/${mm}/${yy} ${hh}.${mi}`;
+    }
 };
 
 const kategoriBadge = (k) => {
